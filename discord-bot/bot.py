@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message content
 
-# Create bot instance
-bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+# Create bot instance (disable default help command to use custom one)
+bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents, help_command=None)
 
 
 @bot.event
@@ -54,30 +54,32 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Only process messages that start with the command prefix
-    if not message.content.startswith(COMMAND_PREFIX):
-        return
+    # Process commands
+    await bot.process_commands(message)
 
-    # Extract the command and content
-    # Remove the prefix to get the actual message content
-    content = message.content[len(COMMAND_PREFIX):].strip()
 
-    # If there's no content after the prefix, ignore
-    if not content:
-        return
+@bot.command(name='ping')
+async def ping(ctx):
+    """Test command to check if bot is responsive"""
+    await ctx.send(f'Pong! Latency: {round(bot.latency * 1000)}ms')
 
-    logger.info(f'Processing message from {message.author.name}: {content}')
+
+@bot.command(name='schedule')
+async def schedule(ctx, *, message: str):
+    """Send a scheduling request to n8n for processing"""
+    logger.info(f'Schedule command from {ctx.author.name}: {message}')
 
     # Prepare webhook payload
     payload = {
-        'message': content,
-        'author': str(message.author.name),
-        'author_id': str(message.author.id),
-        'channel': str(message.channel.name) if hasattr(message.channel, 'name') else 'DM',
-        'channel_id': str(message.channel.id),
-        'timestamp': message.created_at.isoformat(),
-        'guild': str(message.guild.name) if message.guild else None,
-        'guild_id': str(message.guild.id) if message.guild else None
+        'command': 'schedule',
+        'message': message,
+        'author': str(ctx.author.name),
+        'author_id': str(ctx.author.id),
+        'channel': str(ctx.channel.name) if hasattr(ctx.channel, 'name') else 'DM',
+        'channel_id': str(ctx.channel.id),
+        'timestamp': ctx.message.created_at.isoformat(),
+        'guild': str(ctx.guild.name) if ctx.guild else None,
+        'guild_id': str(ctx.guild.id) if ctx.guild else None
     }
 
     try:
@@ -89,25 +91,17 @@ async def on_message(message):
         )
         response.raise_for_status()
 
-        logger.info(f'Successfully sent webhook to n8n (status: {response.status_code})')
+        logger.info(f'Successfully sent schedule request to n8n (status: {response.status_code})')
 
-        # Optional: React to the message to show it was processed
-        await message.add_reaction('✅')
+        # React to show it was processed successfully
+        await ctx.message.add_reaction('✅')
+        await ctx.send('📅 Scheduling request sent to ATLAS for processing!')
 
     except requests.exceptions.RequestException as e:
         logger.error(f'Failed to send webhook to n8n: {e}')
         # React with error emoji
-        await message.add_reaction('❌')
-
-    # Process commands (if any are defined)
-    await bot.process_commands(message)
-
-
-@bot.command(name='ping')
-async def ping(ctx):
-    """Test command to check if bot is responsive"""
-    await ctx.send(f'Pong! Latency: {round(bot.latency * 1000)}ms')
-
+        await ctx.message.add_reaction('❌')
+        await ctx.send('❌ Failed to send scheduling request. Please try again later.')
 
 @bot.command(name='help')
 async def help_command(ctx):
@@ -115,17 +109,16 @@ async def help_command(ctx):
     help_text = f"""
 **ATLAS Discord Bot**
 
-I forward your messages to n8n for processing!
-
-**Usage:**
-- Start your message with `{COMMAND_PREFIX}` followed by your text
-- Example: `{COMMAND_PREFIX}remind me to check email tomorrow`
+Your personal virtual assistant for scheduling and task management!
 
 **Commands:**
 - `{COMMAND_PREFIX}ping` - Check bot responsiveness
+- `{COMMAND_PREFIX}schedule <message>` - Send a scheduling request to ATLAS
+  - Example: `{COMMAND_PREFIX}schedule meeting with team tomorrow at 2pm`
+  - Example: `{COMMAND_PREFIX}schedule remind me to review PRs on Friday`
 - `{COMMAND_PREFIX}help` - Show this help message
 
-Your messages will be processed and sent to the n8n workflow.
+Only schedule commands are sent to n8n for AI processing.
     """
     await ctx.send(help_text)
 
@@ -134,8 +127,9 @@ Your messages will be processed and sent to the n8n workflow.
 async def on_command_error(ctx, error):
     """Handle command errors"""
     if isinstance(error, commands.CommandNotFound):
-        # For unknown commands, still forward to n8n (already handled in on_message)
-        pass
+        await ctx.send(f'Unknown command. Use `{COMMAND_PREFIX}help` to see available commands.')
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f'Missing required argument. Use `{COMMAND_PREFIX}help` for usage examples.')
     else:
         logger.error(f'Command error: {error}')
         await ctx.send(f'An error occurred: {str(error)}')
