@@ -21,6 +21,36 @@ with open(ROSTER_PATH, "r") as f:
 OFFICERS = roster_config["officers"]
 ACTIVE_ROSTER = roster_config["active_roster"]
 
+# Capability class color mapping
+CAPABILITY_COLORS = {
+    "Strategic": 0x9b59b6,     # Purple
+    "Operational": 0x3498db,   # Blue
+    "Tactical": 0x2ecc71,      # Green
+    "Support": 0xf39c12        # Orange
+}
+
+def get_officer_color(officer: Dict[str, Any]) -> int:
+    """Get color for an officer based on their capability class."""
+    # First check if officer has explicit color
+    if "color" in officer:
+        return int(officer["color"], 16)
+    # Otherwise use capability class color
+    capability_class = officer.get("capability_class", "Operational")
+    return CAPABILITY_COLORS.get(capability_class, 0x95a5a6)
+
+def filter_officers_by_capability(capability_class: str = None) -> List[str]:
+    """Filter active officers by capability class."""
+    if not capability_class:
+        return ACTIVE_ROSTER
+
+    # Case-insensitive matching
+    capability_class_lower = capability_class.lower()
+
+    return [
+        officer_id for officer_id in ACTIVE_ROSTER
+        if OFFICERS[officer_id].get("capability_class", "").lower() == capability_class_lower
+    ]
+
 
 class WarRoomBot(discord.Client):
     def __init__(self):
@@ -47,9 +77,10 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
         max_length=2000
     )
 
-    def __init__(self, original_brief: str):
+    def __init__(self, original_brief: str, capability_class: str = None):
         super().__init__()
         self.original_brief = original_brief
+        self.capability_class = capability_class
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -57,8 +88,8 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
         # Combine original brief with pivot instruction
         new_brief = f"{self.original_brief}\n\n**PIVOT:** {self.pivot_instruction.value}"
 
-        # Re-query all officers with the pivoted mission
-        results = await query_all_officers(new_brief)
+        # Re-query officers with the pivoted mission (using same capability class)
+        results = await query_all_officers(new_brief, self.capability_class)
 
         # Create response embeds
         header_embed = discord.Embed(
@@ -76,6 +107,7 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
                 description=result['response'][:4096],
                 color=result['color']
             )
+            embed.add_field(name="Class", value=result['capability_class'], inline=True)
             embed.add_field(name="Specialty", value=result['specialty'], inline=True)
             embed.add_field(
                 name="Status",
@@ -85,17 +117,18 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
             embeds.append(embed)
 
         # Send with a new view, splitting embeds if needed
-        view = WarRoomView(new_brief, results)
+        view = WarRoomView(new_brief, results, self.capability_class)
         await send_embeds_in_batches(interaction, embeds, view)
 
 
 class WarRoomView(discord.ui.View):
     """Interactive view with War Room control buttons."""
 
-    def __init__(self, mission_brief: str, results: List[Dict[str, Any]]):
+    def __init__(self, mission_brief: str, results: List[Dict[str, Any]], capability_class: str = None):
         super().__init__(timeout=None)
         self.mission_brief = mission_brief
         self.results = results
+        self.capability_class = capability_class
 
     @discord.ui.button(label="Red Team Rebuttal", style=discord.ButtonStyle.danger, emoji="🔴")
     async def red_team_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -152,7 +185,7 @@ class WarRoomView(discord.ui.View):
     @discord.ui.button(label="Pivot", style=discord.ButtonStyle.secondary, emoji="🔄")
     async def pivot_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Open modal for mid-mission course correction."""
-        modal = PivotModal(self.mission_brief)
+        modal = PivotModal(self.mission_brief, self.capability_class)
         await interaction.response.send_modal(modal)
 
 
@@ -193,7 +226,8 @@ async def query_officer(
             "officer_id": officer_id,
             "title": officer["title"],
             "specialty": officer["specialty"],
-            "color": int(officer["color"], 16),
+            "capability_class": officer.get("capability_class", "Operational"),
+            "color": get_officer_color(officer),
             "response": content,
             "success": True
         }
@@ -202,18 +236,25 @@ async def query_officer(
             "officer_id": officer_id,
             "title": officer["title"],
             "specialty": officer["specialty"],
-            "color": int(officer["color"], 16),
+            "capability_class": officer.get("capability_class", "Operational"),
+            "color": get_officer_color(officer),
             "response": f"Error: {str(e)}",
             "success": False
         }
 
 
-async def query_all_officers(mission_brief: str) -> List[Dict[str, Any]]:
-    """Query all active officers in parallel."""
+async def query_all_officers(mission_brief: str, capability_class: str = None) -> List[Dict[str, Any]]:
+    """Query all active officers in parallel, optionally filtered by capability class."""
+    # Filter officers by capability class if specified
+    officer_ids = filter_officers_by_capability(capability_class)
+
+    if not officer_ids:
+        return []
+
     async with httpx.AsyncClient() as client:
         tasks = [
             query_officer(officer_id, mission_brief, client)
-            for officer_id in ACTIVE_ROSTER
+            for officer_id in officer_ids
         ]
         results = await asyncio.gather(*tasks)
 
@@ -274,21 +315,36 @@ async def on_ready():
 
 
 @bot.tree.command(name="mission", description="Submit a mission brief to the War Room council")
-@app_commands.describe(brief="The mission brief or question for the council")
-async def mission(interaction: discord.Interaction, brief: str):
-    """Mission command - queries all officers in parallel."""
+@app_commands.describe(
+    brief="The mission brief or question for the council",
+    capability_class="Filter by capability class: Strategic, Operational, Tactical, or Support (optional)"
+)
+async def mission(interaction: discord.Interaction, brief: str, capability_class: str = None):
+    """Mission command - queries all officers in parallel, optionally filtered by capability class."""
     await interaction.response.defer()
 
-    # Query all officers
-    results = await query_all_officers(brief)
+    # Query officers, filtered by capability class if specified
+    results = await query_all_officers(brief, capability_class)
+
+    # Handle case where no officers match the filter
+    if not results:
+        await interaction.followup.send(
+            f"❌ No officers found for capability class: **{capability_class}**\n"
+            f"Available classes: Strategic, Operational, Tactical, Support"
+        )
+        return
 
     # Create embed for mission brief
+    header_title = "🎯 War Room Mission Brief"
+    if capability_class:
+        header_title += f" - {capability_class.title()} Class"
+
     header_embed = discord.Embed(
-        title="🎯 War Room Mission Brief",
+        title=header_title,
         description=brief,
-        color=0x95a5a6
+        color=CAPABILITY_COLORS.get(capability_class.title(), 0x95a5a6) if capability_class else 0x95a5a6
     )
-    header_embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+    header_embed.set_footer(text=f"Requested by {interaction.user.display_name} • Officers: {len(results)}")
 
     embeds = [header_embed]
 
@@ -299,6 +355,7 @@ async def mission(interaction: discord.Interaction, brief: str):
             description=result['response'][:4096],  # Discord embed description limit
             color=result['color']
         )
+        embed.add_field(name="Class", value=result['capability_class'], inline=True)
         embed.add_field(name="Specialty", value=result['specialty'], inline=True)
         embed.add_field(
             name="Status",
@@ -308,7 +365,7 @@ async def mission(interaction: discord.Interaction, brief: str):
         embeds.append(embed)
 
     # Send response with interactive view
-    view = WarRoomView(brief, results)
+    view = WarRoomView(brief, results, capability_class)
 
     # Discord has a 6000 character limit for total embed size per message
     # Split embeds into batches if needed
