@@ -84,9 +84,9 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
             )
             embeds.append(embed)
 
-        # Send with a new view
+        # Send with a new view, splitting embeds if needed
         view = WarRoomView(new_brief, results)
-        await interaction.followup.send(embeds=embeds, view=view)
+        await send_embeds_in_batches(interaction, embeds, view)
 
 
 class WarRoomView(discord.ui.View):
@@ -220,6 +220,51 @@ async def query_all_officers(mission_brief: str) -> List[Dict[str, Any]]:
     return results
 
 
+def calculate_embed_size(embed: discord.Embed) -> int:
+    """Calculate the total character count of an embed."""
+    total = 0
+    if embed.title:
+        total += len(embed.title)
+    if embed.description:
+        total += len(embed.description)
+    if embed.footer.text:
+        total += len(embed.footer.text)
+    if embed.author.name:
+        total += len(embed.author.name)
+    for field in embed.fields:
+        total += len(field.name) + len(field.value)
+    return total
+
+
+async def send_embeds_in_batches(
+    interaction: discord.Interaction,
+    embeds: List[discord.Embed],
+    view: discord.ui.View = None
+):
+    """Send embeds in batches to avoid Discord's 6000 character limit per message."""
+    MAX_EMBED_SIZE = 5500  # Safe margin under 6000
+    current_batch = []
+    current_size = 0
+
+    for i, embed in enumerate(embeds):
+        embed_size = calculate_embed_size(embed)
+
+        # If adding this embed would exceed the limit, send current batch
+        if current_size + embed_size > MAX_EMBED_SIZE and current_batch:
+            # Only attach view to the last message
+            current_view = None
+            await interaction.followup.send(embeds=current_batch, view=current_view)
+            current_batch = []
+            current_size = 0
+
+        current_batch.append(embed)
+        current_size += embed_size
+
+    # Send remaining embeds with the view attached to the last message
+    if current_batch:
+        await interaction.followup.send(embeds=current_batch, view=view)
+
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -262,7 +307,10 @@ async def mission(interaction: discord.Interaction, brief: str):
 
     # Send response with interactive view
     view = WarRoomView(brief, results)
-    await interaction.followup.send(embeds=embeds, view=view)
+
+    # Discord has a 6000 character limit for total embed size per message
+    # Split embeds into batches if needed
+    await send_embeds_in_batches(interaction, embeds, view)
 
 
 if __name__ == "__main__":
