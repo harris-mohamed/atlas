@@ -1,38 +1,16 @@
-version: '3.8'
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_ORIGINS=*
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  war-room-bot:
+    build: .
+    container_name: atlas-war-room
     restart: unless-stopped
-
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
-    ports:
-      - "3002:8080"
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - WEBUI_SECRET_KEY=211758d686c952cefbb288cac5152b370b7c5603800379ffb21714269f1e20e0
+    env_file:
+      - .env
     volumes:
-      - open-webui:/app/backend/data
-    depends_on:
-      - ollama
-    restart: unless-stopped
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    networks:
+      - atlas-network
 
-volumes:
-  ollama:
-  open-webui:
+networks:
+  atlas-network:
+    driver: bridge
