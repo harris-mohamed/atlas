@@ -103,7 +103,7 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
 
         for result in results:
             embed = discord.Embed(
-                title=f"**[{result['officer_id']} - {result['title']}]**",
+                title=f"**[{result['officer_id']} - {result['title']}]** • {result['model']}",
                 description=result['response'][:4096],
                 color=result['color']
             )
@@ -225,6 +225,7 @@ async def query_officer(
         return {
             "officer_id": officer_id,
             "title": officer["title"],
+            "model": officer["model"],
             "specialty": officer["specialty"],
             "capability_class": officer.get("capability_class", "Operational"),
             "color": get_officer_color(officer),
@@ -235,6 +236,7 @@ async def query_officer(
         return {
             "officer_id": officer_id,
             "title": officer["title"],
+            "model": officer["model"],
             "specialty": officer["specialty"],
             "capability_class": officer.get("capability_class", "Operational"),
             "color": get_officer_color(officer),
@@ -351,7 +353,7 @@ async def mission(interaction: discord.Interaction, brief: str, capability_class
     # Create embed for each officer response
     for result in results:
         embed = discord.Embed(
-            title=f"**[{result['officer_id']} - {result['title']}]**",
+            title=f"**[{result['officer_id']} - {result['title']}]** • {result['model']}",
             description=result['response'][:4096],  # Discord embed description limit
             color=result['color']
         )
