@@ -251,9 +251,8 @@ async def send_embeds_in_batches(
 
         # If adding this embed would exceed the limit, send current batch
         if current_size + embed_size > MAX_EMBED_SIZE and current_batch:
-            # Only attach view to the last message
-            current_view = None
-            await interaction.followup.send(embeds=current_batch, view=current_view)
+            # Send without view (view only goes on the last message)
+            await interaction.followup.send(embeds=current_batch)
             current_batch = []
             current_size = 0
 
@@ -262,7 +261,10 @@ async def send_embeds_in_batches(
 
     # Send remaining embeds with the view attached to the last message
     if current_batch:
-        await interaction.followup.send(embeds=current_batch, view=view)
+        if view:
+            await interaction.followup.send(embeds=current_batch, view=view)
+        else:
+            await interaction.followup.send(embeds=current_batch)
 
 
 @bot.event
