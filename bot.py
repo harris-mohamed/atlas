@@ -319,8 +319,14 @@ async def on_ready():
 @bot.tree.command(name="mission", description="Submit a mission brief to the War Room council")
 @app_commands.describe(
     brief="The mission brief or question for the council",
-    capability_class="Filter by capability class: Strategic, Operational, Tactical, or Support (optional)"
+    capability_class="Filter by capability class (optional)"
 )
+@app_commands.choices(capability_class=[
+    app_commands.Choice(name="Strategic (O1-O4)", value="strategic"),
+    app_commands.Choice(name="Operational (O5-O8)", value="operational"),
+    app_commands.Choice(name="Tactical (O9-O12)", value="tactical"),
+    app_commands.Choice(name="Support (O13-O16)", value="support")
+])
 async def mission(interaction: discord.Interaction, brief: str, capability_class: str = None):
     """Mission command - queries all officers in parallel, optionally filtered by capability class."""
     await interaction.response.defer()
