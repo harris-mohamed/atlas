@@ -157,6 +157,42 @@ async def save_mission(
         await session.commit()
         return mission.id
 
+async def save_research_mission(
+    channel_id: int,
+    research_topic: str,
+    user_id: int,
+    capability_class: str,
+    officer_responses: List[Dict],
+    research_metadata: Dict
+) -> int:
+    """Save research mission with research-specific metadata."""
+    async with async_session_maker() as session:
+        mission = MissionHistory(
+            channel_id=channel_id,
+            mission_brief=research_topic[:1000],
+            user_id=user_id,
+            capability_class_filter=capability_class,
+            completed_at=datetime.utcnow(),
+            extra_metadata=research_metadata  # Contains mission_type: "research"
+        )
+        session.add(mission)
+        await session.flush()
+
+        # Save officer responses
+        for response_data in officer_responses:
+            response = MissionOfficerResponse(
+                mission_id=mission.id,
+                officer_id=response_data["officer_id"],
+                response_content=response_data["response"][:2000],
+                tokens_used=len(response_data["response"]) // 4,
+                success=response_data["success"],
+                error_message=response_data.get("error")
+            )
+            session.add(response)
+
+        await session.commit()
+        return mission.id
+
 async def add_manual_note(
     channel_id: int,
     officer_id: str,
