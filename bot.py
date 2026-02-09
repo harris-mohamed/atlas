@@ -7,6 +7,13 @@ import asyncio
 from typing import Dict, List, Any
 from dotenv import load_dotenv
 
+# Database imports
+from db_manager import (
+    init_db, seed_officers, ensure_channel_exists,
+    load_officer_memory, save_mission, add_manual_note,
+    clear_officer_memory, get_channel_stats
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -62,6 +69,11 @@ class WarRoomBot(discord.Client):
     async def setup_hook(self):
         await self.tree.sync()
 
+        # Initialize database
+        await init_db()
+        await seed_officers(OFFICERS)
+        print("✅ Database initialized and officers seeded")
+
 
 bot = WarRoomBot()
 
@@ -89,7 +101,8 @@ class PivotModal(discord.ui.Modal, title="🔄 Mission Pivot"):
         new_brief = f"{self.original_brief}\n\n**PIVOT:** {self.pivot_instruction.value}"
 
         # Re-query officers with the pivoted mission (using same capability class)
-        results = await query_all_officers(new_brief, self.capability_class)
+        channel_id = interaction.channel_id
+        results = await query_all_officers(new_brief, self.capability_class, channel_id)
 
         # Create response embeds
         header_embed = discord.Embed(
@@ -143,8 +156,9 @@ class WarRoomView(discord.ui.View):
         # Query O-3 with the compiled responses
         rebuttal_prompt = f"{council_output}\n\n**Task:** Provide a Red Team rebuttal. Identify weaknesses, risks, and failure modes in the council's responses."
 
+        channel_id = interaction.channel_id
         async with httpx.AsyncClient() as client:
-            o3_result = await query_officer("O3", rebuttal_prompt, client)
+            o3_result = await query_officer("O3", rebuttal_prompt, client, channel_id)
 
         # Create rebuttal embed
         embed = discord.Embed(
@@ -169,8 +183,9 @@ class WarRoomView(discord.ui.View):
         # Query O-2 to create a structured plan
         plan_prompt = f"{council_output}\n\n**Task:** Synthesize the council's responses into a structured PLAN.md document. Include: Executive Summary, Key Objectives, Implementation Steps, Risk Mitigation, and Success Criteria."
 
+        channel_id = interaction.channel_id
         async with httpx.AsyncClient() as client:
-            o2_result = await query_officer("O2", plan_prompt, client)
+            o2_result = await query_officer("O2", plan_prompt, client, channel_id)
 
         # Create plan embed
         embed = discord.Embed(
@@ -192,15 +207,26 @@ class WarRoomView(discord.ui.View):
 async def query_officer(
     officer_id: str,
     mission_brief: str,
-    client: httpx.AsyncClient
+    client: httpx.AsyncClient,
+    channel_id: int = None
 ) -> Dict[str, Any]:
-    """Query a single officer via OpenRouter API."""
+    """Query a single officer via OpenRouter API with memory context."""
     officer = OFFICERS[officer_id]
+
+    # Load memory from database if channel_id provided
+    memory_context = ""
+    if channel_id:
+        memory_context = await load_officer_memory(channel_id, officer_id)
+
+    # Augment system prompt with memory
+    system_content = officer["system_prompt"]
+    if memory_context:
+        system_content = f"{system_content}\n\n## Your Memory for This Channel:\n{memory_context}"
 
     payload = {
         "model": officer["model"],
         "messages": [
-            {"role": "system", "content": officer["system_prompt"]},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": mission_brief}
         ]
     }
@@ -245,7 +271,7 @@ async def query_officer(
         }
 
 
-async def query_all_officers(mission_brief: str, capability_class: str = None) -> List[Dict[str, Any]]:
+async def query_all_officers(mission_brief: str, capability_class: str = None, channel_id: int = None) -> List[Dict[str, Any]]:
     """Query all active officers in parallel, optionally filtered by capability class."""
     # Filter officers by capability class if specified
     officer_ids = filter_officers_by_capability(capability_class)
@@ -255,7 +281,7 @@ async def query_all_officers(mission_brief: str, capability_class: str = None) -
 
     async with httpx.AsyncClient() as client:
         tasks = [
-            query_officer(officer_id, mission_brief, client)
+            query_officer(officer_id, mission_brief, client, channel_id)
             for officer_id in officer_ids
         ]
         results = await asyncio.gather(*tasks)
@@ -331,8 +357,20 @@ async def mission(interaction: discord.Interaction, brief: str, capability_class
     """Mission command - queries all officers in parallel, optionally filtered by capability class."""
     await interaction.response.defer()
 
-    # Query officers, filtered by capability class if specified
-    results = await query_all_officers(brief, capability_class)
+    # Extract channel info
+    channel_id = interaction.channel_id
+    channel_name = interaction.channel.name if interaction.channel else "DM"
+    guild_id = interaction.guild_id if interaction.guild else 0
+    user_id = interaction.user.id
+
+    # Ensure channel exists in database
+    await ensure_channel_exists(channel_id, channel_name, guild_id)
+
+    # Query officers with memory, filtered by capability class if specified
+    results = await query_all_officers(brief, capability_class, channel_id)
+
+    # Save mission to database (auto-capture)
+    await save_mission(channel_id, brief, user_id, capability_class, results)
 
     # Handle case where no officers match the filter
     if not results:
@@ -378,6 +416,119 @@ async def mission(interaction: discord.Interaction, brief: str, capability_class
     # Discord has a 6000 character limit for total embed size per message
     # Split embeds into batches if needed
     await send_embeds_in_batches(interaction, embeds, view)
+
+
+class ConfirmClearView(discord.ui.View):
+    """Confirmation dialog for clearing memory."""
+
+    def __init__(self, channel_id: int, officer_id: str):
+        super().__init__(timeout=30)
+        self.channel_id = channel_id
+        self.officer_id = officer_id
+
+    @discord.ui.button(label="Yes, Clear", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await clear_officer_memory(self.channel_id, self.officer_id)
+        await interaction.response.send_message(f"✅ Cleared {self.officer_id}'s memory")
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("❌ Cancelled")
+
+
+@bot.tree.command(name="memory", description="Manage officer memory for this channel")
+@app_commands.describe(
+    action="Action to perform",
+    officer_id="Officer ID (O1-O16)",
+    note="Note content (for 'add' action)"
+)
+@app_commands.choices(action=[
+    app_commands.Choice(name="📊 View Stats", value="stats"),
+    app_commands.Choice(name="🔍 View Officer", value="view"),
+    app_commands.Choice(name="➕ Add Note", value="add"),
+    app_commands.Choice(name="🗑️ Clear Officer", value="clear")
+])
+async def memory(
+    interaction: discord.Interaction,
+    action: str,
+    officer_id: str = None,
+    note: str = None
+):
+    """Memory management commands."""
+    channel_id = interaction.channel_id
+
+    if action == "stats":
+        # Display channel memory statistics
+        stats = await get_channel_stats(channel_id)
+
+        embed = discord.Embed(
+            title="📊 Channel Memory Statistics",
+            description=f"Memory status for {interaction.channel.name}",
+            color=0x3498db
+        )
+
+        for off_id, data in stats.items():
+            officer = OFFICERS.get(off_id)
+            if officer:
+                embed.add_field(
+                    name=f"{off_id} - {officer['title']}",
+                    value=f"Notes: {data['notes']} | Missions: {data['missions']}",
+                    inline=False
+                )
+
+        await interaction.response.send_message(embed=embed)
+
+    elif action == "view":
+        # Display detailed memory for one officer
+        if not officer_id:
+            await interaction.response.send_message("❌ Please specify an officer_id")
+            return
+
+        if officer_id not in OFFICERS:
+            await interaction.response.send_message(f"❌ Invalid officer_id: {officer_id}")
+            return
+
+        memory_text = await load_officer_memory(channel_id, officer_id)
+
+        embed = discord.Embed(
+            title=f"🧠 Memory: {officer_id} - {OFFICERS[officer_id]['title']}",
+            description=memory_text if memory_text else "No memory yet",
+            color=get_officer_color(OFFICERS[officer_id])
+        )
+
+        await interaction.response.send_message(embed=embed)
+
+    elif action == "add":
+        # Add manual note
+        if not officer_id or not note:
+            await interaction.response.send_message("❌ Please specify officer_id and note")
+            return
+
+        if officer_id not in OFFICERS:
+            await interaction.response.send_message(f"❌ Invalid officer_id: {officer_id}")
+            return
+
+        await add_manual_note(channel_id, officer_id, note, interaction.user.id)
+
+        await interaction.response.send_message(
+            f"✅ Added note to {officer_id}'s memory in this channel"
+        )
+
+    elif action == "clear":
+        # Clear officer's memory with confirmation
+        if not officer_id:
+            await interaction.response.send_message("❌ Please specify an officer_id")
+            return
+
+        if officer_id not in OFFICERS:
+            await interaction.response.send_message(f"❌ Invalid officer_id: {officer_id}")
+            return
+
+        view = ConfirmClearView(channel_id, officer_id)
+        await interaction.response.send_message(
+            f"⚠️ Clear all manual notes for {officer_id} in this channel?",
+            view=view
+        )
 
 
 if __name__ == "__main__":
