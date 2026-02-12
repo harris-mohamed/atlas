@@ -1,9 +1,18 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import select
-from models.memory import Base, Officer, Channel, OfficerChannelMemory, MissionHistory, MissionOfficerResponse, ManualNote
 import os
-from typing import Optional, List, Dict
 from datetime import datetime
+from typing import Dict, List, Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from models.memory import (
+    Base,
+    Channel,
+    ManualNote,
+    MissionHistory,
+    MissionOfficerResponse,
+    Officer,
+)
 
 # Initialize async engine
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://atlas_user:changeme@localhost:5432/atlas_db")
@@ -93,7 +102,7 @@ async def load_officer_memory(channel_id: int, officer_id: str, max_tokens: int 
             .join(MissionHistory)
             .where(MissionOfficerResponse.officer_id == officer_id)
             .where(MissionHistory.channel_id == channel_id)
-            .where(MissionOfficerResponse.success == True)
+            .where(MissionOfficerResponse.success.is_(True))
             .order_by(MissionHistory.started_at.desc())
             .limit(5)
         )

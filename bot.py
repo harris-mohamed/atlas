@@ -1,19 +1,26 @@
-import discord
-from discord import app_commands
-import httpx
+import asyncio
 import json
 import os
-import asyncio
 import tempfile
-from typing import Dict, List, Any
 from datetime import datetime
+from typing import Any, Dict, List
+
+import discord
+import httpx
+from discord import app_commands
 from dotenv import load_dotenv
 
 # Database imports
 from db_manager import (
-    init_db, seed_officers, ensure_channel_exists,
-    load_officer_memory, save_mission, add_manual_note,
-    clear_officer_memory, get_channel_stats, save_research_mission
+    add_manual_note,
+    clear_officer_memory,
+    ensure_channel_exists,
+    get_channel_stats,
+    init_db,
+    load_officer_memory,
+    save_mission,
+    save_research_mission,
+    seed_officers,
 )
 
 # Load environment variables
