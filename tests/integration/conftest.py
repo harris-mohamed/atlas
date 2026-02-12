@@ -10,6 +10,7 @@ Tests are skipped automatically if DATABASE_URL is not set.
 Each test function gets a completely fresh schema (drop_all → create_all).
 """
 import os
+
 import pytest
 import pytest_asyncio
 

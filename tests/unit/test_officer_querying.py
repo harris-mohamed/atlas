@@ -8,12 +8,11 @@ Unit tests for officer querying logic in bot.py:
 All HTTP calls are mocked via AsyncMock on the httpx client.
 All DB calls (load_officer_memory) are patched to return empty strings.
 """
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-import json
-from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import bot
-
 
 # ---------------------------------------------------------------------------
 # Minimal test officers to patch bot.OFFICERS with

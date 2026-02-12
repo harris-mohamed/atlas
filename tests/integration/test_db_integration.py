@@ -10,23 +10,22 @@ Run locally:
     pytest tests/integration/ -v
 """
 import asyncio
-import pytest
-from sqlalchemy import select, text
 
-import db_manager
+import pytest
+from sqlalchemy import select
+
 from db_manager import (
-    seed_officers,
-    ensure_channel_exists,
-    load_officer_memory,
     add_manual_note,
+    async_session_maker,
     clear_officer_memory,
+    ensure_channel_exists,
     get_channel_stats,
+    load_officer_memory,
     save_mission,
     save_research_mission,
-    async_session_maker,
+    seed_officers,
 )
-from models.memory import Officer, Channel, ManualNote, MissionHistory, MissionOfficerResponse
-
+from models.memory import Channel, ManualNote, MissionHistory, MissionOfficerResponse, Officer
 
 # ---------------------------------------------------------------------------
 # Shared test data

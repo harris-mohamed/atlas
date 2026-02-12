@@ -4,13 +4,12 @@ Unit tests for db_manager.py
 All database interactions are mocked via patching db_manager.async_session_maker.
 No real PostgreSQL required.
 """
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, call, patch
-from datetime import datetime
 
 import db_manager
-from models.memory import Officer, Channel, ManualNote, MissionHistory, MissionOfficerResponse
-
+from models.memory import Channel, ManualNote, MissionHistory, MissionOfficerResponse, Officer
 
 # ---------------------------------------------------------------------------
 # Helpers

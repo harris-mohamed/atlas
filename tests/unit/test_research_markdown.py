@@ -2,8 +2,6 @@
 Unit tests for generate_research_markdown() in bot.py.
 Pure function — no mocking needed.
 """
-import pytest
-
 import bot
 
 

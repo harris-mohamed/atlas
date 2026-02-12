@@ -4,9 +4,6 @@ Contract tests for OpenRouter API response shapes.
 Validates that our response parsing code handles all known response variants
 correctly, using fixture JSON files (no real network calls).
 """
-import pytest
-
-
 def test_success_response_content_accessible(openrouter_success_response):
     """We can extract the assistant's text from a success response."""
     content = openrouter_success_response["choices"][0]["message"]["content"]

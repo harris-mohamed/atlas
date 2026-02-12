@@ -2,10 +2,14 @@
 Unit tests for SQLAlchemy ORM models in models/memory.py.
 Tests instantiation, defaults, and field types — no DB connection required.
 """
-import pytest
-from datetime import datetime
-
-from models.memory import Officer, Channel, ManualNote, MissionHistory, MissionOfficerResponse, OfficerChannelMemory
+from models.memory import (
+    Channel,
+    ManualNote,
+    MissionHistory,
+    MissionOfficerResponse,
+    Officer,
+    OfficerChannelMemory,
+)
 
 
 class TestOfficerModel:

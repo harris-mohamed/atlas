@@ -3,9 +3,10 @@ Unit tests for embed construction helpers in bot.py:
   - calculate_embed_size()
   - send_embeds_in_batches()
 """
-import pytest
+from unittest.mock import AsyncMock, MagicMock
+
 import discord
-from unittest.mock import AsyncMock, MagicMock, patch, call
+import pytest
 
 import bot
 

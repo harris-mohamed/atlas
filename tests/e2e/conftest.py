@@ -8,8 +8,8 @@ Prerequisites:
   - OPENROUTER_API_KEY: Real OpenRouter key
   - DATABASE_URL: PostgreSQL connection string
 """
-import asyncio
 import os
+
 import pytest
 import pytest_asyncio
 

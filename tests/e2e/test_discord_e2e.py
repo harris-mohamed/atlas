@@ -6,9 +6,6 @@ See tests/e2e/conftest.py for credential guards.
 
 Sprint 5 will flesh these out; this file establishes the module structure.
 """
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Placeholder — Sprint 5 will populate this file
 # ---------------------------------------------------------------------------

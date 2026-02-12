@@ -4,8 +4,6 @@ Contract tests for config/roster.json.
 Validates that the production roster satisfies all structural invariants
 the application code depends on — without mocking or network calls.
 """
-import pytest
-
 VALID_CAPABILITY_CLASSES = {"Strategic", "Operational", "Tactical", "Support"}
 REQUIRED_OFFICER_FIELDS = {"title", "model", "specialty", "capability_class", "system_prompt"}
 

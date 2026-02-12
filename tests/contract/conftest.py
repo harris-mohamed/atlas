@@ -4,6 +4,7 @@ Contract test fixtures — validates our assumptions about external schemas
 """
 import json
 import pathlib
+
 import pytest
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
