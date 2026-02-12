@@ -1,0 +1,21 @@
+{
+  "id": "gen-test-success-001",
+  "model": "anthropic/claude-3-haiku",
+  "object": "chat.completion",
+  "created": 1707600000,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "This is a test response from the officer."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 50,
+    "completion_tokens": 12,
+    "total_tokens": 62
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "active_roster": ["T1", "T2", "T3", "T4"],
+  "officers": {
+    "T1": {
+      "title": "Test Officer Alpha",
+      "model": "anthropic/claude-3-haiku",
+      "specialty": "Unit Testing",
+      "capability_class": "Support",
+      "color": "0xaabbcc",
+      "system_prompt": "You are Test Officer Alpha. Respond concisely for testing purposes."
+    },
+    "T2": {
+      "title": "Test Officer Beta",
+      "model": "openai/gpt-4o-mini",
+      "specialty": "Integration Testing",
+      "capability_class": "Support",
+      "system_prompt": "You are Test Officer Beta. Respond concisely for testing purposes."
+    },
+    "T3": {
+      "title": "Test Officer Gamma",
+      "model": "google/gemini-2.0-flash-001",
+      "specialty": "Contract Testing",
+      "capability_class": "Support",
+      "system_prompt": "You are Test Officer Gamma. Respond concisely for testing purposes."
+    },
+    "T4": {
+      "title": "Test Officer Delta",
+      "model": "anthropic/claude-3-haiku",
+      "specialty": "E2E Testing",
+      "capability_class": "Support",
+      "system_prompt": "You are Test Officer Delta. Respond concisely for testing purposes."
+    }
+  }
+}
