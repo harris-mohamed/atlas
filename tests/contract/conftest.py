@@ -2,6 +2,7 @@
 Contract test fixtures — validates our assumptions about external schemas
 (roster.json, OpenRouter API shapes) without making real network calls.
 """
+
 import json
 import pathlib
 

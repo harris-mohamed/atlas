@@ -8,6 +8,7 @@ Prerequisites:
   - OPENROUTER_API_KEY: Real OpenRouter key
   - DATABASE_URL: PostgreSQL connection string
 """
+
 import os
 
 import pytest

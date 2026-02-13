@@ -2,6 +2,7 @@
 Unit tests for generate_research_markdown() in bot.py.
 Pure function — no mocking needed.
 """
+
 import bot
 
 
@@ -31,6 +32,7 @@ def make_research_results(count=4):
 # ---------------------------------------------------------------------------
 # Structure tests
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateResearchMarkdown:
     def test_starts_with_h1_heading(self):

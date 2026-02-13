@@ -4,6 +4,7 @@ Contract tests for config/roster.json.
 Validates that the production roster satisfies all structural invariants
 the application code depends on — without mocking or network calls.
 """
+
 VALID_CAPABILITY_CLASSES = {"Strategic", "Operational", "Tactical", "Support"}
 REQUIRED_OFFICER_FIELDS = {"title", "model", "specialty", "capability_class", "system_prompt"}
 
@@ -25,9 +26,9 @@ def test_active_roster_ids_exist_in_officers(production_roster):
     officers = production_roster["officers"]
     active = production_roster["active_roster"]
     for officer_id in active:
-        assert officer_id in officers, (
-            f"active_roster contains '{officer_id}' but no matching officer definition found"
-        )
+        assert (
+            officer_id in officers
+        ), f"active_roster contains '{officer_id}' but no matching officer definition found"
 
 
 def test_no_duplicate_ids_in_active_roster(production_active_roster):
@@ -45,17 +46,17 @@ def test_all_officers_have_required_fields(production_officers):
 def test_all_officers_have_valid_capability_class(production_officers):
     """Every officer's capability_class is one of the four known values."""
     for officer_id, officer in production_officers.items():
-        assert officer["capability_class"] in VALID_CAPABILITY_CLASSES, (
-            f"Officer '{officer_id}' has unknown capability_class: '{officer['capability_class']}'"
-        )
+        assert (
+            officer["capability_class"] in VALID_CAPABILITY_CLASSES
+        ), f"Officer '{officer_id}' has unknown capability_class: '{officer['capability_class']}'"
 
 
 def test_all_officers_have_non_empty_system_prompt(production_officers):
     """No officer has a blank system prompt."""
     for officer_id, officer in production_officers.items():
-        assert officer["system_prompt"].strip(), (
-            f"Officer '{officer_id}' has an empty system_prompt"
-        )
+        assert officer[
+            "system_prompt"
+        ].strip(), f"Officer '{officer_id}' has an empty system_prompt"
 
 
 def test_all_officers_have_non_empty_model(production_officers):

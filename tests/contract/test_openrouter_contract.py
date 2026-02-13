@@ -4,6 +4,8 @@ Contract tests for OpenRouter API response shapes.
 Validates that our response parsing code handles all known response variants
 correctly, using fixture JSON files (no real network calls).
 """
+
+
 def test_success_response_content_accessible(openrouter_success_response):
     """We can extract the assistant's text from a success response."""
     content = openrouter_success_response["choices"][0]["message"]["content"]
@@ -49,9 +51,7 @@ def test_error_response_has_error_key(openrouter_error_response):
 
 def test_parsing_success_response_does_not_raise():
     """Simulate the exact parsing logic from bot.py on a success response."""
-    response_data = {
-        "choices": [{"message": {"role": "assistant", "content": "Hello."}}]
-    }
+    response_data = {"choices": [{"message": {"role": "assistant", "content": "Hello."}}]}
     # Mirrors bot.py: response.json()["choices"][0]["message"]["content"]
     content = response_data["choices"][0]["message"]["content"]
     assert content == "Hello."
@@ -60,13 +60,15 @@ def test_parsing_success_response_does_not_raise():
 def test_parsing_tool_call_response_detects_tool_calls():
     """Simulate the tool_call detection logic from bot.py."""
     response_data = {
-        "choices": [{
-            "message": {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [{"function": {"name": "web_search"}}]
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{"function": {"name": "web_search"}}],
+                }
             }
-        }]
+        ]
     }
     message = response_data["choices"][0]["message"]
     # Mirrors bot.py: if "tool_calls" in message

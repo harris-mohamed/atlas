@@ -2,6 +2,7 @@
 Unit tests for SQLAlchemy ORM models in models/memory.py.
 Tests instantiation, defaults, and field types — no DB connection required.
 """
+
 from models.memory import (
     Channel,
     ManualNote,
@@ -14,8 +15,14 @@ from models.memory import (
 
 class TestOfficerModel:
     def test_officer_id_is_string(self):
-        o = Officer(officer_id="O1", title="T", model="m",
-                    capability_class="Support", specialty="s", system_prompt="p")
+        o = Officer(
+            officer_id="O1",
+            title="T",
+            model="m",
+            capability_class="Support",
+            specialty="s",
+            system_prompt="p",
+        )
         assert o.officer_id == "O1"
         assert isinstance(o.officer_id, str)
 
@@ -137,8 +144,7 @@ class TestMissionOfficerResponseModel:
 
     def test_tokens_used_is_optional(self):
         r = MissionOfficerResponse(
-            mission_id=1, officer_id="O1",
-            response_content="Response", success=True
+            mission_id=1, officer_id="O1", response_content="Response", success=True
         )
         assert r.tokens_used is None
 

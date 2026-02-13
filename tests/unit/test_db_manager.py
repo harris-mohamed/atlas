@@ -4,6 +4,7 @@ Unit tests for db_manager.py
 All database interactions are mocked via patching db_manager.async_session_maker.
 No real PostgreSQL required.
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,6 +15,7 @@ from models.memory import Channel, ManualNote, MissionHistory, MissionOfficerRes
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_execute_result(scalars=None, rows=None):
     """
@@ -65,6 +67,7 @@ def fresh_session():
 # seed_officers
 # ---------------------------------------------------------------------------
 
+
 class TestSeedOfficers:
     @pytest.mark.asyncio
     async def test_inserts_new_officer(self):
@@ -72,20 +75,22 @@ class TestSeedOfficers:
         session = fresh_session()
         # First execute: officer not found; second execute: all DB officers (empty)
         session.execute.side_effect = [
-            make_execute_result(),           # officer lookup → None
-            make_execute_result(),           # all DB officers → []
+            make_execute_result(),  # officer lookup → None
+            make_execute_result(),  # all DB officers → []
         ]
 
         with patch.object(db_manager, "async_session_maker", make_session_patcher(session)):
-            await db_manager.seed_officers({
-                "O1": {
-                    "title": "Test Officer",
-                    "model": "anthropic/claude-3-haiku",
-                    "capability_class": "Support",
-                    "specialty": "Testing",
-                    "system_prompt": "You are a test officer.",
+            await db_manager.seed_officers(
+                {
+                    "O1": {
+                        "title": "Test Officer",
+                        "model": "anthropic/claude-3-haiku",
+                        "capability_class": "Support",
+                        "specialty": "Testing",
+                        "system_prompt": "You are a test officer.",
+                    }
                 }
-            })
+            )
 
         session.add.assert_called_once()
         added = session.add.call_args[0][0]
@@ -106,20 +111,22 @@ class TestSeedOfficers:
         )
         session = fresh_session()
         session.execute.side_effect = [
-            make_execute_result([existing]),   # officer lookup → found
-            make_execute_result([existing]),   # all DB officers
+            make_execute_result([existing]),  # officer lookup → found
+            make_execute_result([existing]),  # all DB officers
         ]
 
         with patch.object(db_manager, "async_session_maker", make_session_patcher(session)):
-            await db_manager.seed_officers({
-                "O1": {
-                    "title": "New Title",
-                    "model": "new/model",
-                    "capability_class": "Support",
-                    "specialty": "New",
-                    "system_prompt": "New prompt.",
+            await db_manager.seed_officers(
+                {
+                    "O1": {
+                        "title": "New Title",
+                        "model": "new/model",
+                        "capability_class": "Support",
+                        "specialty": "New",
+                        "system_prompt": "New prompt.",
+                    }
                 }
-            })
+            )
 
         session.add.assert_not_called()
         assert existing.title == "New Title"
@@ -128,21 +135,32 @@ class TestSeedOfficers:
     @pytest.mark.asyncio
     async def test_preserves_officer_removed_from_roster(self):
         """An officer in the DB but absent from the roster dict is kept (not deleted)."""
-        ghost_officer = Officer(officer_id="O99", title="Ghost", model="x", capability_class="Support",
-                                specialty="x", system_prompt="x")
+        ghost_officer = Officer(
+            officer_id="O99",
+            title="Ghost",
+            model="x",
+            capability_class="Support",
+            specialty="x",
+            system_prompt="x",
+        )
         session = fresh_session()
         session.execute.side_effect = [
-            make_execute_result(),              # O1 lookup → None
+            make_execute_result(),  # O1 lookup → None
             make_execute_result([ghost_officer]),  # all DB officers
         ]
 
         with patch.object(db_manager, "async_session_maker", make_session_patcher(session)):
-            await db_manager.seed_officers({
-                "O1": {
-                    "title": "T", "model": "m", "capability_class": "Support",
-                    "specialty": "s", "system_prompt": "p"
+            await db_manager.seed_officers(
+                {
+                    "O1": {
+                        "title": "T",
+                        "model": "m",
+                        "capability_class": "Support",
+                        "specialty": "s",
+                        "system_prompt": "p",
+                    }
                 }
-            })
+            )
 
         # session.delete should never be called — ghost officer is preserved
         session.delete.assert_not_called()
@@ -158,12 +176,24 @@ class TestSeedOfficers:
         ]
 
         with patch.object(db_manager, "async_session_maker", make_session_patcher(session)):
-            await db_manager.seed_officers({
-                "O1": {"title": "A", "model": "m", "capability_class": "Support",
-                       "specialty": "s", "system_prompt": "p"},
-                "O2": {"title": "B", "model": "m", "capability_class": "Support",
-                       "specialty": "s", "system_prompt": "p"},
-            })
+            await db_manager.seed_officers(
+                {
+                    "O1": {
+                        "title": "A",
+                        "model": "m",
+                        "capability_class": "Support",
+                        "specialty": "s",
+                        "system_prompt": "p",
+                    },
+                    "O2": {
+                        "title": "B",
+                        "model": "m",
+                        "capability_class": "Support",
+                        "specialty": "s",
+                        "system_prompt": "p",
+                    },
+                }
+            )
 
         session.commit.assert_called_once()
 
@@ -171,6 +201,7 @@ class TestSeedOfficers:
 # ---------------------------------------------------------------------------
 # ensure_channel_exists
 # ---------------------------------------------------------------------------
+
 
 class TestEnsureChannelExists:
     @pytest.mark.asyncio
@@ -207,6 +238,7 @@ class TestEnsureChannelExists:
 # load_officer_memory
 # ---------------------------------------------------------------------------
 
+
 class TestLoadOfficerMemory:
     @pytest.mark.asyncio
     async def test_returns_empty_string_when_no_data(self):
@@ -225,8 +257,9 @@ class TestLoadOfficerMemory:
     @pytest.mark.asyncio
     async def test_formats_manual_notes(self):
         """Manual notes appear under the '### Manual Notes:' heading."""
-        note = ManualNote(officer_id="O1", channel_id=111,
-                          note_content="Prefer async patterns", is_pinned=False)
+        note = ManualNote(
+            officer_id="O1", channel_id=111, note_content="Prefer async patterns", is_pinned=False
+        )
         session = fresh_session()
         session.execute.side_effect = [
             make_execute_result([note]),
@@ -245,10 +278,12 @@ class TestLoadOfficerMemory:
         The DB query orders by is_pinned DESC — we verify our formatting
         preserves the order returned by the query.
         """
-        pinned = ManualNote(officer_id="O1", channel_id=111,
-                            note_content="PINNED NOTE", is_pinned=True)
-        unpinned = ManualNote(officer_id="O1", channel_id=111,
-                              note_content="UNPINNED NOTE", is_pinned=False)
+        pinned = ManualNote(
+            officer_id="O1", channel_id=111, note_content="PINNED NOTE", is_pinned=True
+        )
+        unpinned = ManualNote(
+            officer_id="O1", channel_id=111, note_content="UNPINNED NOTE", is_pinned=False
+        )
         # DB returns pinned first (simulating ORDER BY is_pinned DESC)
         session = fresh_session()
         session.execute.side_effect = [
@@ -272,7 +307,7 @@ class TestLoadOfficerMemory:
         brief = "Design a caching strategy"
         session = fresh_session()
         session.execute.side_effect = [
-            make_execute_result(),                      # no notes
+            make_execute_result(),  # no notes
             make_execute_result(rows=[(response, brief)]),  # mission row
         ]
 
@@ -286,8 +321,9 @@ class TestLoadOfficerMemory:
     @pytest.mark.asyncio
     async def test_combines_notes_and_missions(self):
         """When both sources exist, both sections appear in the output."""
-        note = ManualNote(officer_id="O1", channel_id=111,
-                          note_content="Be concise", is_pinned=False)
+        note = ManualNote(
+            officer_id="O1", channel_id=111, note_content="Be concise", is_pinned=False
+        )
         response = MissionOfficerResponse(
             officer_id="O1", response_content="Response text.", success=True
         )
@@ -308,8 +344,9 @@ class TestLoadOfficerMemory:
         """Output is truncated when estimated tokens exceed max_tokens."""
         # Create a note whose content is long enough to exceed the limit
         long_content = "x" * 10000  # 10000 chars ≈ 2500 tokens (> default 2000)
-        note = ManualNote(officer_id="O1", channel_id=111,
-                          note_content=long_content, is_pinned=False)
+        note = ManualNote(
+            officer_id="O1", channel_id=111, note_content=long_content, is_pinned=False
+        )
         session = fresh_session()
         session.execute.side_effect = [
             make_execute_result([note]),
@@ -326,6 +363,7 @@ class TestLoadOfficerMemory:
 # ---------------------------------------------------------------------------
 # add_manual_note
 # ---------------------------------------------------------------------------
+
 
 class TestAddManualNote:
     @pytest.mark.asyncio
@@ -356,6 +394,7 @@ class TestAddManualNote:
 # ---------------------------------------------------------------------------
 # clear_officer_memory
 # ---------------------------------------------------------------------------
+
 
 class TestClearOfficerMemory:
     @pytest.mark.asyncio
@@ -401,6 +440,7 @@ class TestClearOfficerMemory:
 # ---------------------------------------------------------------------------
 # save_mission
 # ---------------------------------------------------------------------------
+
 
 class TestSaveMission:
     @pytest.mark.asyncio
@@ -503,6 +543,7 @@ class TestSaveMission:
 # ---------------------------------------------------------------------------
 # save_research_mission
 # ---------------------------------------------------------------------------
+
 
 class TestSaveResearchMission:
     @pytest.mark.asyncio

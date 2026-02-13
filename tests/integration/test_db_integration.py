@@ -9,6 +9,7 @@ Run locally:
     DATABASE_URL=postgresql+asyncpg://atlas_user:changeme@localhost:5432/atlas_db \
     pytest tests/integration/ -v
 """
+
 import asyncio
 
 import pytest
@@ -49,8 +50,8 @@ OFFICER_DICT = {
 }
 
 CHANNEL_ID = 111222333444555666
-GUILD_ID   = 999888777666555444
-USER_ID    = 123456789012345678
+GUILD_ID = 999888777666555444
+USER_ID = 123456789012345678
 
 
 async def seed_and_channel():
@@ -62,6 +63,7 @@ async def seed_and_channel():
 # ---------------------------------------------------------------------------
 # seed_officers
 # ---------------------------------------------------------------------------
+
 
 class TestSeedOfficersIntegration:
     @pytest.mark.asyncio
@@ -78,9 +80,7 @@ class TestSeedOfficersIntegration:
     async def test_officer_fields_stored_correctly(self):
         await seed_officers(OFFICER_DICT)
         async with async_session_maker() as session:
-            result = await session.execute(
-                select(Officer).where(Officer.officer_id == "O1")
-            )
+            result = await session.execute(select(Officer).where(Officer.officer_id == "O1"))
             o = result.scalar_one()
         assert o.title == "Test Officer Alpha"
         assert o.model == "anthropic/claude-3-haiku"
@@ -98,14 +98,10 @@ class TestSeedOfficersIntegration:
     @pytest.mark.asyncio
     async def test_updates_existing_officer_fields(self):
         await seed_officers(OFFICER_DICT)
-        updated = {
-            "O1": {**OFFICER_DICT["O1"], "title": "Updated Title", "model": "new/model"}
-        }
+        updated = {"O1": {**OFFICER_DICT["O1"], "title": "Updated Title", "model": "new/model"}}
         await seed_officers(updated)
         async with async_session_maker() as session:
-            result = await session.execute(
-                select(Officer).where(Officer.officer_id == "O1")
-            )
+            result = await session.execute(select(Officer).where(Officer.officer_id == "O1"))
             o = result.scalar_one()
         assert o.title == "Updated Title"
         assert o.model == "new/model"
@@ -126,14 +122,13 @@ class TestSeedOfficersIntegration:
 # ensure_channel_exists
 # ---------------------------------------------------------------------------
 
+
 class TestEnsureChannelExistsIntegration:
     @pytest.mark.asyncio
     async def test_creates_channel_record(self):
         await ensure_channel_exists(CHANNEL_ID, "general", GUILD_ID)
         async with async_session_maker() as session:
-            result = await session.execute(
-                select(Channel).where(Channel.channel_id == CHANNEL_ID)
-            )
+            result = await session.execute(select(Channel).where(Channel.channel_id == CHANNEL_ID))
             ch = result.scalar_one()
         assert ch.channel_name == "general"
         assert ch.guild_id == GUILD_ID
@@ -151,6 +146,7 @@ class TestEnsureChannelExistsIntegration:
 # ---------------------------------------------------------------------------
 # add_manual_note + load_officer_memory
 # ---------------------------------------------------------------------------
+
 
 class TestManualNotesIntegration:
     @pytest.mark.asyncio
@@ -199,14 +195,24 @@ class TestManualNotesIntegration:
         await seed_and_channel()
         # Insert unpinned first, then pinned — memory should still show pinned first
         async with async_session_maker() as session:
-            session.add(ManualNote(
-                officer_id="O1", channel_id=CHANNEL_ID,
-                note_content="UNPINNED", created_by_user_id=USER_ID, is_pinned=False
-            ))
-            session.add(ManualNote(
-                officer_id="O1", channel_id=CHANNEL_ID,
-                note_content="PINNED", created_by_user_id=USER_ID, is_pinned=True
-            ))
+            session.add(
+                ManualNote(
+                    officer_id="O1",
+                    channel_id=CHANNEL_ID,
+                    note_content="UNPINNED",
+                    created_by_user_id=USER_ID,
+                    is_pinned=False,
+                )
+            )
+            session.add(
+                ManualNote(
+                    officer_id="O1",
+                    channel_id=CHANNEL_ID,
+                    note_content="PINNED",
+                    created_by_user_id=USER_ID,
+                    is_pinned=True,
+                )
+            )
             await session.commit()
 
         memory = await load_officer_memory(CHANNEL_ID, "O1")
@@ -216,6 +222,7 @@ class TestManualNotesIntegration:
 # ---------------------------------------------------------------------------
 # clear_officer_memory
 # ---------------------------------------------------------------------------
+
 
 class TestClearOfficerMemoryIntegration:
     @pytest.mark.asyncio
@@ -262,6 +269,7 @@ class TestClearOfficerMemoryIntegration:
 # save_mission + load_officer_memory (mission context)
 # ---------------------------------------------------------------------------
 
+
 class TestSaveMissionIntegration:
     @pytest.mark.asyncio
     async def test_mission_and_responses_persisted(self):
@@ -270,7 +278,9 @@ class TestSaveMissionIntegration:
             {"officer_id": "O1", "response": "O1 analysis.", "success": True},
             {"officer_id": "O2", "response": "O2 analysis.", "success": True},
         ]
-        mission_id = await save_mission(CHANNEL_ID, "Design a system", USER_ID, "Support", responses)
+        mission_id = await save_mission(
+            CHANNEL_ID, "Design a system", USER_ID, "Support", responses
+        )
 
         async with async_session_maker() as session:
             mission = await session.get(MissionHistory, mission_id)
@@ -378,6 +388,7 @@ class TestSaveMissionIntegration:
 # save_research_mission
 # ---------------------------------------------------------------------------
 
+
 class TestSaveResearchMissionIntegration:
     @pytest.mark.asyncio
     async def test_research_metadata_persisted(self):
@@ -411,6 +422,7 @@ class TestSaveResearchMissionIntegration:
 # ---------------------------------------------------------------------------
 # get_channel_stats
 # ---------------------------------------------------------------------------
+
 
 class TestGetChannelStatsIntegration:
     @pytest.mark.asyncio
@@ -454,6 +466,7 @@ class TestGetChannelStatsIntegration:
 # Concurrency
 # ---------------------------------------------------------------------------
 
+
 class TestConcurrencyIntegration:
     @pytest.mark.asyncio
     async def test_concurrent_missions_all_saved(self):
@@ -461,10 +474,12 @@ class TestConcurrencyIntegration:
         await seed_and_channel()
         responses = [{"officer_id": "O1", "response": "R", "success": True}]
 
-        mission_ids = await asyncio.gather(*[
-            save_mission(CHANNEL_ID, f"Concurrent brief {i}", USER_ID, None, responses)
-            for i in range(5)
-        ])
+        mission_ids = await asyncio.gather(
+            *[
+                save_mission(CHANNEL_ID, f"Concurrent brief {i}", USER_ID, None, responses)
+                for i in range(5)
+            ]
+        )
 
         assert len(mission_ids) == 5
         assert len(set(mission_ids)) == 5  # all IDs are distinct

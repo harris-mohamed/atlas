@@ -2,6 +2,7 @@
 Unit test fixtures — all external dependencies are mocked.
 No database, no network calls.
 """
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

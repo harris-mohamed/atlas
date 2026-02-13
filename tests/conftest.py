@@ -1,6 +1,7 @@
 """
 Shared fixtures available to all test layers.
 """
+
 import json
 import pathlib
 
@@ -12,6 +13,7 @@ FIXTURES_DIR = pathlib.Path(__file__).parent / "fixtures"
 # ---------------------------------------------------------------------------
 # Roster fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def test_roster():
@@ -63,6 +65,7 @@ def mock_officer_no_color():
 # OpenRouter API response fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def openrouter_success_response():
     """A valid OpenRouter chat completion response."""
@@ -98,13 +101,14 @@ TEST_CHANNEL_NAME = "test-channel"
 # Mock officer query result helpers
 # ---------------------------------------------------------------------------
 
+
 def make_officer_result(
     officer_id: str = "T1",
     title: str = "Test Officer Alpha",
     model: str = "anthropic/claude-3-haiku",
     response: str = "This is a test response.",
     success: bool = True,
-    color: int = 0xaabbcc,
+    color: int = 0xAABBCC,
     research_role: str = None,
     error: str = None,
 ) -> dict:

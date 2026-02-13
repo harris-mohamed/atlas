@@ -3,6 +3,7 @@ Unit tests for embed construction helpers in bot.py:
   - calculate_embed_size()
   - send_embeds_in_batches()
 """
+
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -14,7 +15,7 @@ import bot
 def make_embed(title="", description="", fields=None, footer="", author=""):
     """Build a real discord.Embed with the given content."""
     embed = discord.Embed(title=title, description=description)
-    for name, value in (fields or []):
+    for name, value in fields or []:
         embed.add_field(name=name, value=value)
     if footer:
         embed.set_footer(text=footer)
@@ -34,6 +35,7 @@ def make_interaction():
 # ---------------------------------------------------------------------------
 # calculate_embed_size
 # ---------------------------------------------------------------------------
+
 
 class TestCalculateEmbedSize:
     def test_empty_embed_returns_zero(self):
@@ -82,6 +84,7 @@ class TestCalculateEmbedSize:
 # ---------------------------------------------------------------------------
 # send_embeds_in_batches
 # ---------------------------------------------------------------------------
+
 
 class TestSendEmbedsInBatches:
     @pytest.mark.asyncio
