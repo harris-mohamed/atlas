@@ -1,0 +1,31 @@
+{
+  "id": "gen-test-toolcall-001",
+  "model": "openai/gpt-4o",
+  "object": "chat.completion",
+  "created": 1707600000,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+              "name": "web_search",
+              "arguments": "{\"query\": \"latest AI news\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 45,
+    "completion_tokens": 20,
+    "total_tokens": 65
+  }
+}
