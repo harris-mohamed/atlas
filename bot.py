@@ -240,6 +240,50 @@ class WarRoomView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
+    @discord.ui.button(label="Continue & Cross-Reference", style=discord.ButtonStyle.success, emoji="🔁")
+    async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Re-query all officers with full context of each other's responses."""
+        await interaction.response.defer()
+
+        # Compile the original mission + all prior responses as shared context
+        council_context = f"**Original Mission:** {self.mission_brief}\n\n**Council Responses:**\n"
+        for result in self.results:
+            council_context += f"\n**[{result['officer_id']} - {result['title']}]:**\n{result['response']}\n"
+
+        continuation_prompt = (
+            f"{council_context}\n\n"
+            "**Task:** Having reviewed your fellow officers' perspectives, continue your analysis. "
+            "Build upon points of agreement, address any gaps or contradictions you see, "
+            "and refine your position based on the collective intelligence above."
+        )
+
+        channel_id = interaction.channel_id
+        results = await query_all_officers(continuation_prompt, self.capability_class, channel_id)
+
+        header_embed = discord.Embed(
+            title="🔁 Continued Analysis — Cross-Referenced",
+            description=self.mission_brief,
+            color=0x27AE60,
+        )
+        header_embed.set_footer(text=f"Continued by {interaction.user.display_name}")
+
+        embeds = [header_embed]
+        for result in results:
+            embed = discord.Embed(
+                title=f"**[{result['officer_id']} - {result['title']}]** • {result['model']}",
+                description=result["response"][:4096],
+                color=result["color"],
+            )
+            embed.add_field(name="Class", value=result["capability_class"], inline=True)
+            embed.add_field(name="Specialty", value=result["specialty"], inline=True)
+            embed.add_field(
+                name="Status", value="✅ Complete" if result["success"] else "❌ Error", inline=True
+            )
+            embeds.append(embed)
+
+        view = WarRoomView(self.mission_brief, results, self.capability_class)
+        await send_embeds_in_batches(interaction, embeds, view)
+
     @discord.ui.button(label="Pivot", style=discord.ButtonStyle.secondary, emoji="🔄")
     async def pivot_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Open modal for mid-mission course correction."""
