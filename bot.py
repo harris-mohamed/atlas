@@ -240,7 +240,9 @@ class WarRoomView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
-    @discord.ui.button(label="Continue & Cross-Reference", style=discord.ButtonStyle.success, emoji="🔁")
+    @discord.ui.button(
+        label="Continue & Cross-Reference", style=discord.ButtonStyle.success, emoji="🔁"
+    )
     async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Re-query all officers with full context of each other's responses."""
         await interaction.response.defer()
@@ -248,7 +250,9 @@ class WarRoomView(discord.ui.View):
         # Compile the original mission + all prior responses as shared context
         council_context = f"**Original Mission:** {self.mission_brief}\n\n**Council Responses:**\n"
         for result in self.results:
-            council_context += f"\n**[{result['officer_id']} - {result['title']}]:**\n{result['response']}\n"
+            council_context += (
+                f"\n**[{result['officer_id']} - {result['title']}]:**\n{result['response']}\n"
+            )
 
         continuation_prompt = (
             f"{council_context}\n\n"
