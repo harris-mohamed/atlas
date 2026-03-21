@@ -75,7 +75,7 @@ export interface SchedulerDependencies {
   sendMessage: (jid: string, text: string) => Promise<void>;
 }
 
-async function runTask(
+export async function runTask(
   task: ScheduledTask,
   deps: SchedulerDependencies,
 ): Promise<void> {
@@ -168,6 +168,12 @@ async function runTask(
     }, TASK_CLOSE_DELAY_MS);
   };
 
+  // Use Haiku for scheduled reports — they're structured summarization tasks
+  // that don't need Sonnet's depth. Research and build tasks keep Sonnet (default).
+  const model = task.group_folder.startsWith('report_')
+    ? 'claude-haiku-4-5-20251001'
+    : undefined;
+
   try {
     const output = await runContainerAgent(
       group,
@@ -179,6 +185,7 @@ async function runTask(
         isMain,
         isScheduledTask: true,
         assistantName: ASSISTANT_NAME,
+        model,
       },
       (proc, containerName) =>
         deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),

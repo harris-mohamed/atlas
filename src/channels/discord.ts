@@ -30,6 +30,7 @@ import { researchCommand } from '../commands/research.js';
 import { buildCommand } from '../commands/build.js';
 import { statusCommand } from '../commands/status.js';
 import { reportCommand } from '../commands/report.js';
+import { runCommand } from '../commands/run.js';
 
 const { DISCORD_TOKEN, DISCORD_CONTROL_CHANNEL_ID: CONTROL_CHANNEL_ID } =
   readEnvFile(['DISCORD_TOKEN', 'DISCORD_CONTROL_CHANNEL_ID']);
@@ -66,6 +67,7 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
   commands.set(buildCommand.data.name, buildCommand);
   commands.set(statusCommand.data.name, statusCommand);
   commands.set(reportCommand.data.name, reportCommand);
+  commands.set(runCommand.data.name, runCommand);
 
   /**
    * Check if a channel/thread is the control channel
@@ -196,6 +198,8 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
                 opts.registeredGroups(),
                 activeContainers,
               );
+            } else if (interaction.commandName === 'run') {
+              await command.execute(interaction, opts.runTask);
             } else if (interaction.commandName === 'report') {
               await command.execute(
                 interaction,
@@ -248,6 +252,11 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
                     added_at: timestamp,
                     requiresTrigger: false,
                     isMain: false,
+                    // Build spec phase uses Haiku — switched to Sonnet at build trigger
+                    model:
+                      interaction.commandName === 'build'
+                        ? 'claude-haiku-4-5-20251001'
+                        : undefined,
                   });
                   // Write the appropriate CLAUDE.md so the agent knows its role
                   const systemPrompt =
@@ -389,6 +398,7 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
       buildCommand.data.toJSON(),
       statusCommand.data.toJSON(),
       reportCommand.data.toJSON(),
+      runCommand.data.toJSON(),
     ];
 
     try {
@@ -421,6 +431,15 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
           ephemeral: true,
         });
       } else if (interaction.customId === 'start-build') {
+        // Switch this thread from Haiku (spec phase) to Sonnet (build phase)
+        const buildGroup = opts.registeredGroups()[interaction.channelId];
+        if (buildGroup?.model) {
+          opts.onRegisterGroup(interaction.channelId, {
+            ...buildGroup,
+            model: undefined, // Sonnet (default)
+          });
+        }
+
         // Trigger autonomous build mode
         await interaction.followUp({
           content:

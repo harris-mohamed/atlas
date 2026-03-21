@@ -46,7 +46,9 @@ export const reportCommand = {
     .addStringOption((o) =>
       o
         .setName('topic')
-        .setDescription('What to research and report on (e.g. "LLM development updates")')
+        .setDescription(
+          'What to research and report on (e.g. "LLM development updates")',
+        )
         .setRequired(true),
     )
     .addStringOption((o) =>
@@ -81,7 +83,9 @@ export const reportCommand = {
     .addChannelOption((o) =>
       o
         .setName('channel')
-        .setDescription('Channel to post reports in (defaults to current channel)')
+        .setDescription(
+          'Channel to post reports in (defaults to current channel)',
+        )
         .addChannelTypes(ChannelType.GuildText)
         .setRequired(false),
     ),
@@ -98,7 +102,10 @@ export const reportCommand = {
       interaction.options.getChannel('channel') ?? interaction.channel;
 
     if (!targetChannel) {
-      await interaction.reply({ content: 'Could not resolve target channel.', ephemeral: true });
+      await interaction.reply({
+        content: 'Could not resolve target channel.',
+        ephemeral: true,
+      });
       return;
     }
 
@@ -121,10 +128,15 @@ export const reportCommand = {
       if (!registeredGroups()[channelId]) {
         const groupDir = path.join(process.cwd(), 'groups', folder);
         fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
-        fs.writeFileSync(path.join(groupDir, 'CLAUDE.md'), RESEARCH_SYSTEM_PROMPT);
+        fs.writeFileSync(
+          path.join(groupDir, 'CLAUDE.md'),
+          RESEARCH_SYSTEM_PROMPT,
+        );
 
         onRegisterGroup(channelId, {
-          name: ('name' in targetChannel ? targetChannel.name : null) ?? `report-${suffix}`,
+          name:
+            ('name' in targetChannel ? targetChannel.name : null) ??
+            `report-${suffix}`,
           folder,
           trigger: `@Atlas`,
           added_at: new Date().toISOString(),
@@ -135,13 +147,116 @@ export const reportCommand = {
 
       // Create the scheduled task
       const taskId = crypto.randomUUID();
-      const prompt =
-        `You are writing a recurring research briefing. Topic: "${topic}"\n\n` +
-        `Produce a concise, well-sourced briefing covering the latest developments. ` +
-        `Focus on what is new or notable since the last report. ` +
-        `Write the briefing directly as your response — do not write to a file. ` +
-        `Keep it under 1500 words. Use clear headers, inline citations [Source](URL), ` +
-        `and a short "Key Takeaways" section at the top.`;
+      const isJobTopic =
+        /\b(job|jobs|hiring|openings?|positions?|roles?|careers?|salary|salaries|recruit)\b/i.test(
+          topic,
+        );
+
+      const prompt = isJobTopic
+        ? `You are writing a recurring job market briefing. Topic: "${topic}"
+
+Research current job openings and write the briefing directly as your response — do not write to a file.
+
+Use this exact format:
+
+# 💼 Job Radar — {{DATE}}
+
+---
+
+> **⭐ Top Pick**
+> **{{TITLE}}** @ {{COMPANY}}
+> 📍 {{LOCATION or REMOTE}} · 💰 {{SALARY RANGE if available}}
+> {{2-3 sentences on why this role stands out and what makes it a strong fit}}
+
+---
+
+### Fresh Listings
+
+▸ **{{TITLE}}** @ {{COMPANY}} — {{REMOTE or LOCATION}}
+  \`{{KEY_SKILL_1}}\` \`{{KEY_SKILL_2}}\` \`{{KEY_SKILL_3}}\`
+
+▸ **{{TITLE}}** @ {{COMPANY}} — {{REMOTE or LOCATION}}
+  \`{{KEY_SKILL_1}}\` \`{{KEY_SKILL_2}}\` \`{{KEY_SKILL_3}}\`
+
+▸ **{{TITLE}}** @ {{COMPANY}} — {{REMOTE or LOCATION}}
+  \`{{KEY_SKILL_1}}\` \`{{KEY_SKILL_2}}\` \`{{KEY_SKILL_3}}\`
+
+▸ **{{TITLE}}** @ {{COMPANY}} — {{REMOTE or LOCATION}}
+  \`{{KEY_SKILL_1}}\` \`{{KEY_SKILL_2}}\` \`{{KEY_SKILL_3}}\`
+
+▸ **{{TITLE}}** @ {{COMPANY}} — {{REMOTE or LOCATION}}
+  \`{{KEY_SKILL_1}}\` \`{{KEY_SKILL_2}}\` \`{{KEY_SKILL_3}}\`
+
+---
+
+### Market Pulse
+
+\`📊\` {{1-2 sentences on hiring trends — which sectors are active, what skills keep appearing}}
+
+---
+
+### 🎯 Move Today
+
+> {{One specific action — apply to X, reach out to Y, update Z on your resume}}
+
+---
+*Atlas · Titan · {{TIMESTAMP}}*
+
+Rules:
+- Replace every {{placeholder}} with real data — never output literal braces
+- Skip roles older than 2 weeks
+- Omit the 💰 line entirely if salary is not publicly listed — do not guess
+- Key skills: pull from the actual job description
+- Top Pick: the single strongest match for an AI/ML engineer in Colorado`
+        : `You are writing a recurring research briefing. Topic: "${topic}"
+
+Research the latest developments and write the briefing directly as your response — do not write to a file.
+
+Use this exact format:
+
+# 🤖 AI Intel — {{DATE}}
+
+---
+
+> **🔥 Lead Story**
+> {{HEADLINE}}
+> {{2-3 sentence summary with why it matters}}
+
+---
+
+### Developments
+
+▸ **{{HEADLINE_2}}**
+{{1-2 sentence summary}}
+
+▸ **{{HEADLINE_3}}**
+{{1-2 sentence summary}}
+
+▸ **{{HEADLINE_4}}**
+{{1-2 sentence summary}}
+
+▸ **{{HEADLINE_5}}**
+{{1-2 sentence summary}}
+
+---
+
+### Open Source & Tools
+▸ {{REPO or TOOL 1}} — {{what it does, why it matters}}
+▸ {{REPO or TOOL 2}} — {{what it does, why it matters}}
+
+---
+
+\`🧭 So What:\` {{2-3 sentences connecting the dots — what pattern or shift to pay attention to this week}}
+
+---
+*Atlas · Titan · {{TIMESTAMP}}*
+
+Rules:
+- Replace every {{placeholder}} with real data — never output literal braces
+- Lead Story: the single most impactful development this cycle
+- Developments: 4 items, varied sources, no overlap with Lead Story
+- Open Source & Tools: real repos or released tools only, skip vaporware
+- So What: synthesis not summary — connect the trends, name the shift`;
 
       const group = registeredGroups()[channelId]!;
       const taskBase = {
@@ -171,7 +286,9 @@ export const reportCommand = {
       };
 
       const nextRun = taskBase.next_run
-        ? new Date(taskBase.next_run!).toLocaleString('en-US', { timeZone: TIMEZONE })
+        ? new Date(taskBase.next_run!).toLocaleString('en-US', {
+            timeZone: TIMEZONE,
+          })
         : 'unknown';
 
       logger.info({ taskId, topic, cron, channelId }, 'Report scheduled');
