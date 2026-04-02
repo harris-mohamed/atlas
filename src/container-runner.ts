@@ -114,6 +114,16 @@ function buildVolumeMounts(
     }
   }
 
+  // Obsidian vault (read-write for all groups)
+  const vaultDir = path.join(process.env.HOME || '/home/harris', 'obsidian');
+  if (fs.existsSync(vaultDir)) {
+    mounts.push({
+      hostPath: vaultDir,
+      containerPath: '/workspace/vault',
+      readonly: false,
+    });
+  }
+
   // Per-group Claude sessions directory (isolated from other groups)
   // Each group gets their own .claude/ to prevent cross-group session access
   const groupSessionsDir = path.join(
@@ -194,8 +204,8 @@ function buildVolumeMounts(
     group.folder,
     'agent-runner-src',
   );
-  if (!fs.existsSync(groupAgentRunnerDir) && fs.existsSync(agentRunnerSrc)) {
-    fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
+  if (fs.existsSync(agentRunnerSrc)) {
+    fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true, force: true });
   }
   mounts.push({
     hostPath: groupAgentRunnerDir,
@@ -224,6 +234,15 @@ function buildContainerArgs(
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Pass GitHub token so build agents can create repos and open PRs
+  const { GITHUB_TOKEN, BRAVE_API_KEY: BRAVE_KEY } = readEnvFile(['GITHUB_TOKEN', 'BRAVE_API_KEY']);
+  if (GITHUB_TOKEN) {
+    args.push('-e', `GITHUB_TOKEN=${GITHUB_TOKEN}`);
+  }
+  if (BRAVE_KEY) {
+    args.push('-e', `BRAVE_API_KEY=${BRAVE_KEY}`);
+  }
 
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(

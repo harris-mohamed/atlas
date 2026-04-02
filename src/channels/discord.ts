@@ -30,6 +30,7 @@ import { researchCommand } from '../commands/research.js';
 import { buildCommand } from '../commands/build.js';
 import { statusCommand } from '../commands/status.js';
 import { reportCommand } from '../commands/report.js';
+import { reminderCommand } from '../commands/reminder.js';
 
 const { DISCORD_TOKEN, DISCORD_CONTROL_CHANNEL_ID: CONTROL_CHANNEL_ID } =
   readEnvFile(['DISCORD_TOKEN', 'DISCORD_CONTROL_CHANNEL_ID']);
@@ -66,12 +67,83 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
   commands.set(buildCommand.data.name, buildCommand);
   commands.set(statusCommand.data.name, statusCommand);
   commands.set(reportCommand.data.name, reportCommand);
+  commands.set(reminderCommand.data.name, reminderCommand);
 
   /**
    * Check if a channel/thread is the control channel
    */
   function isControlChannel(channelId: string): boolean {
     return channelId === CONTROL_CHANNEL_ID;
+  }
+
+  /**
+   * Download and inline attachments into the message content.
+   * Images are saved to the group's uploads folder for the agent to read.
+   */
+  async function processAttachments(
+    message: Message,
+    groupFolder?: string,
+  ): Promise<string> {
+    if (!message.attachments.size) return '';
+    const { execSync } = await import('child_process');
+    const parts: string[] = [];
+
+    for (const [, attachment] of message.attachments) {
+      const { url, name, contentType } = attachment;
+      const filename = name ?? 'attachment';
+      try {
+        if (contentType?.startsWith('image/')) {
+          // Save to group uploads folder so agent can Read it (multimodal)
+          const folder = groupFolder ?? 'control';
+          const uploadsDir = path.join(
+            process.cwd(),
+            'groups',
+            folder,
+            'uploads',
+          );
+          fs.mkdirSync(uploadsDir, { recursive: true });
+          const savePath = path.join(uploadsDir, filename);
+          const resp = await fetch(url);
+          fs.writeFileSync(savePath, Buffer.from(await resp.arrayBuffer()));
+          parts.push(
+            `\n[Attached image: ${filename} — saved to /workspace/group/uploads/${filename}, read it with the Read tool]`,
+          );
+        } else if (contentType === 'application/pdf') {
+          const resp = await fetch(url);
+          const tmpPath = `/tmp/atlas-upload-${Date.now()}-${filename}`;
+          fs.writeFileSync(tmpPath, Buffer.from(await resp.arrayBuffer()));
+          try {
+            const text = execSync(`pdftotext "${tmpPath}" -`, {
+              encoding: 'utf8',
+            });
+            parts.push(
+              `\n[Attached PDF: ${filename}]\n\`\`\`\n${text.slice(0, 20000)}\n\`\`\``,
+            );
+          } catch {
+            parts.push(
+              `\n[Attached PDF: ${filename} — pdftotext not available, could not extract text]`,
+            );
+          } finally {
+            fs.unlinkSync(tmpPath);
+          }
+        } else {
+          // Text, code, CSV, JSON, etc.
+          const resp = await fetch(url);
+          const text = await resp.text();
+          const ext = path.extname(filename).slice(1);
+          parts.push(
+            `\n[Attached file: ${filename}]\n\`\`\`${ext}\n${text.slice(0, 50000)}\n\`\`\``,
+          );
+        }
+      } catch (err) {
+        logger.warn({ filename, err }, 'Failed to process attachment');
+        parts.push(
+          `\n[Attached file: ${filename} — failed to read: ${err instanceof Error ? err.message : 'unknown'}]`,
+        );
+      }
+    }
+
+    return parts.join('\n');
   }
 
   /**
@@ -88,22 +160,23 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
     // Track this JID as owned by Discord
     discordJids.add(chatJid);
 
+    // Inline any attachments into the message content
+    const group = opts.registeredGroups()[chatJid];
+    const attachmentText = await processAttachments(message, group?.folder);
+
     // Build NewMessage
     const newMessage = {
       id: message.id,
       chat_jid: chatJid,
       sender: message.author.id,
       sender_name: message.author.username,
-      content: message.content,
+      content: message.content + attachmentText,
       timestamp: new Date(message.createdTimestamp).toISOString(),
       is_from_me: false,
       is_bot_message: false,
     };
 
-    // Deliver message to orchestrator
-    opts.onMessage(chatJid, newMessage);
-
-    // Deliver metadata
+    // Deliver metadata first — creates the chats row that messages.chat_jid references
     let channelName = 'Unknown';
     if (message.channel.isThread()) {
       channelName = message.channel.name;
@@ -119,6 +192,9 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
       isThread || !isControl, // Threads and non-control channels are "groups"
     );
 
+    // Deliver message to orchestrator
+    opts.onMessage(chatJid, newMessage);
+
     // Auto-register control channel as main
     if (isControl) {
       const groups = opts.registeredGroups();
@@ -132,14 +208,33 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
       }
     }
 
-    // Auto-register threads (research/build contexts)
+    // Auto-register any unregistered thread on first message
     if (isThread) {
       const groups = opts.registeredGroups();
       if (!groups[chatJid]) {
-        logger.info(
-          { threadId: chatJid, threadName: channelName },
-          'New thread detected, will auto-register on first message',
-        );
+        const slug = channelName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 40);
+        const folder = `thread_${slug}-${chatJid.slice(-6)}`;
+        discordJids.add(chatJid);
+        opts.onRegisterGroup(chatJid, {
+          name: channelName,
+          folder,
+          trigger: `@${client.user?.username ?? 'Atlas'}`,
+          added_at: new Date().toISOString(),
+          requiresTrigger: false,
+          isMain: false,
+        });
+        // Use global CLAUDE.md as the default persona
+        const groupDir = path.join(process.cwd(), 'groups', folder);
+        fs.mkdirSync(groupDir, { recursive: true });
+        const globalClaudeMd = path.join(process.cwd(), 'groups', 'global', 'CLAUDE.md');
+        if (fs.existsSync(globalClaudeMd)) {
+          fs.copyFileSync(globalClaudeMd, path.join(groupDir, 'CLAUDE.md'));
+        }
+        logger.info({ threadId: chatJid, channelName, folder }, 'Auto-registered thread');
       }
     }
   }
@@ -177,6 +272,16 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
 
       client.on('messageCreate', handleMessage);
 
+      // Auto-join threads so the bot can send messages in them
+      client.on('threadCreate', async (thread) => {
+        try {
+          await thread.join();
+          logger.debug({ threadId: thread.id, name: thread.name }, 'Joined new thread');
+        } catch (err) {
+          logger.warn({ threadId: thread.id, err }, 'Failed to join thread');
+        }
+      });
+
       client.on('interactionCreate', async (interaction) => {
         // Handle slash commands
         if (interaction.isChatInputCommand()) {
@@ -190,7 +295,9 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
           }
 
           try {
-            if (interaction.commandName === 'status') {
+            if (interaction.commandName === 'reminder') {
+              await command.execute(interaction);
+            } else if (interaction.commandName === 'status') {
               await command.execute(
                 interaction,
                 opts.registeredGroups(),
@@ -307,6 +414,11 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
           return;
         }
 
+        // Join the thread if needed before sending
+        if (discordChannel.isThread() && 'join' in discordChannel) {
+          await (discordChannel as ThreadChannel).join().catch(() => {});
+        }
+
         if (discordChannel.isTextBased() && 'send' in discordChannel) {
           // Split long messages (Discord has 2000 char limit)
           const chunks = splitMessage(text, 2000);
@@ -389,6 +501,7 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
       buildCommand.data.toJSON(),
       statusCommand.data.toJSON(),
       reportCommand.data.toJSON(),
+      reminderCommand.data.toJSON(),
     ];
 
     try {

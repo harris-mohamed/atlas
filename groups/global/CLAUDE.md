@@ -38,6 +38,16 @@ When working as a sub-agent or teammate, only use `send_message` if instructed t
 
 Files you create are saved in `/workspace/group/`. Use this for notes, research, or anything that should persist.
 
+## Obsidian Vault
+
+The user's Obsidian notes vault is mounted at `/workspace/vault/`. You have full read-write access.
+
+**Reading notes:** Use Glob and Read to find and read relevant notes. The vault is organised into folders (e.g. `002 projects/`, `006 literature/`, `005 journals/`).
+
+**Writing notes:** Create or edit `.md` files directly. Use Obsidian-compatible markdown: `[[wikilinks]]` for internal links, `#tags` for tags, and YAML frontmatter for metadata.
+
+Changes are automatically synced via Obsidian Sync — no git operations needed after writing.
+
 ## Memory
 
 The `conversations/` folder contains searchable history of past conversations. Use this to recall context from previous sessions.

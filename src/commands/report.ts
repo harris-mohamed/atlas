@@ -78,6 +78,16 @@ export const reportCommand = {
           { name: '6 PM', value: '18' },
         ),
     )
+    .addStringOption((o) =>
+      o
+        .setName('depth')
+        .setDescription('Research depth (default: brief)')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Brief — concise digest under 1500 words', value: 'brief' },
+          { name: 'Deep — full multi-pass research report', value: 'deep' },
+        ),
+    )
     .addChannelOption((o) =>
       o
         .setName('channel')
@@ -94,6 +104,7 @@ export const reportCommand = {
     const topic = interaction.options.getString('topic', true);
     const schedule = interaction.options.getString('schedule', true);
     const hour = parseInt(interaction.options.getString('time', true), 10);
+    const depth = interaction.options.getString('depth') ?? 'brief';
     const targetChannel =
       interaction.options.getChannel('channel') ?? interaction.channel;
 
@@ -135,13 +146,35 @@ export const reportCommand = {
 
       // Create the scheduled task
       const taskId = crypto.randomUUID();
-      const prompt =
-        `You are writing a recurring research briefing. Topic: "${topic}"\n\n` +
-        `Produce a concise, well-sourced briefing covering the latest developments. ` +
-        `Focus on what is new or notable since the last report. ` +
-        `Write the briefing directly as your response — do not write to a file. ` +
-        `Keep it under 1500 words. Use clear headers, inline citations [Source](URL), ` +
-        `and a short "Key Takeaways" section at the top.`;
+      const searchInstruction =
+        `Use brave_web_search (MCP tool) as your primary search tool — ` +
+        `run searches first and fetch full pages only for the most relevant results.`;
+      const dedupeInstruction =
+        `Before researching, check /workspace/group/reports/ for previous reports (sorted by filename, newest last). ` +
+        `Read up to the last 5 files — they are your history of what has already been covered. ` +
+        `Do not repeat topics, stories, or sources already covered in those reports; focus only on what is genuinely new. ` +
+        `After writing your report, save it to /workspace/group/reports/YYYY-MM-DD.md (today's date).`;
+      const prompt = depth === 'deep'
+        ? `You are writing a deep research report. Topic: "${topic}"\n\n` +
+          `${searchInstruction}\n\n` +
+          `${dedupeInstruction}\n\n` +
+          `Conduct thorough multi-pass research:\n` +
+          `1. DECOMPOSE the topic into 3-5 key research questions\n` +
+          `2. INVESTIGATE each question with multiple brave_web_search calls, read full articles for top results\n` +
+          `3. EVALUATE gaps, contradictions, and unsupported claims\n` +
+          `4. DEEPEN with targeted follow-up brave_web_search calls to fill gaps\n` +
+          `5. SYNTHESIZE into a comprehensive report written to research.md\n\n` +
+          `Minimum 3 research passes before synthesizing. Prioritize depth and accuracy. ` +
+          `Include an executive summary, findings by theme with inline citations [Source](URL), ` +
+          `a "Confidence & Gaps" section, and a full sources list.`
+        : `You are writing a recurring research briefing. Topic: "${topic}"\n\n` +
+          `${searchInstruction}\n\n` +
+          `${dedupeInstruction}\n\n` +
+          `Produce a concise, well-sourced briefing covering the latest developments. ` +
+          `Focus on what is new or notable since the last report. ` +
+          `Write the briefing directly as your response — do not write to a file. ` +
+          `Keep it under 1500 words. Use clear headers, inline citations [Source](URL), ` +
+          `and a short "Key Takeaways" section at the top.`;
 
       const group = registeredGroups()[channelId]!;
       const taskBase = {
@@ -176,9 +209,11 @@ export const reportCommand = {
 
       logger.info({ taskId, topic, cron, channelId }, 'Report scheduled');
 
+      const topicPreview = topic.length > 200 ? topic.slice(0, 200) + '…' : topic;
       await interaction.editReply(
         `✅ **Report scheduled**\n\n` +
-          `**Topic:** ${topic}\n` +
+          `**Topic:** ${topicPreview}\n` +
+          `**Depth:** ${depth === 'deep' ? 'Deep research' : 'Brief digest'}\n` +
           `**Schedule:** ${scheduleLabels[schedule]} at ${targetChannel}\n` +
           `**Cadence:** \`${cron}\` (${TIMEZONE})\n` +
           `**Next run:** ${nextRun}\n` +

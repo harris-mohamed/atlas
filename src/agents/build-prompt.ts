@@ -131,6 +131,15 @@ Ready for review.
 
 When the build is complete, publish it to a new **private** GitHub repository and open a PR.
 
+### Step 0 — Set up working directory
+All project files **must** live under \`/workspace/group/<project-name>/\` — this is the only directory that persists to the host after the container exits.
+\`\`\`bash
+REPO_NAME="atlas-<project-name>"   # derive from project title: lowercase, hyphens, max 50 chars
+mkdir -p /workspace/group/$REPO_NAME
+cd /workspace/group/$REPO_NAME
+\`\`\`
+Do all your work here. Never build in \`/tmp\`, \`/home/node\`, or any other location.
+
 ### Step 1 — Initialize git (if needed)
 \`\`\`bash
 git init
@@ -139,11 +148,9 @@ git commit -m "feat: initial implementation"
 \`\`\`
 
 ### Step 2 — Create private repo and push
-Derive a repo name from the project title: lowercase, hyphens, max 50 chars.
 The GITHUB_TOKEN environment variable is already set — authenticate gh with it, then create the repo:
 \`\`\`bash
 echo "$GITHUB_TOKEN" | gh auth login --with-token
-REPO_NAME="atlas-<project-name>"
 gh repo create "$REPO_NAME" --private --source=. --remote=origin --push
 \`\`\`
 
