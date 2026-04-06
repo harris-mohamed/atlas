@@ -230,11 +230,19 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
         // Use global CLAUDE.md as the default persona
         const groupDir = path.join(process.cwd(), 'groups', folder);
         fs.mkdirSync(groupDir, { recursive: true });
-        const globalClaudeMd = path.join(process.cwd(), 'groups', 'global', 'CLAUDE.md');
+        const globalClaudeMd = path.join(
+          process.cwd(),
+          'groups',
+          'global',
+          'CLAUDE.md',
+        );
         if (fs.existsSync(globalClaudeMd)) {
           fs.copyFileSync(globalClaudeMd, path.join(groupDir, 'CLAUDE.md'));
         }
-        logger.info({ threadId: chatJid, channelName, folder }, 'Auto-registered thread');
+        logger.info(
+          { threadId: chatJid, channelName, folder },
+          'Auto-registered thread',
+        );
       }
     }
   }
@@ -276,7 +284,10 @@ export function createDiscordChannel(opts: ChannelOpts): Channel | null {
       client.on('threadCreate', async (thread) => {
         try {
           await thread.join();
-          logger.debug({ threadId: thread.id, name: thread.name }, 'Joined new thread');
+          logger.debug(
+            { threadId: thread.id, name: thread.name },
+            'Joined new thread',
+          );
         } catch (err) {
           logger.warn({ threadId: thread.id, err }, 'Failed to join thread');
         }
