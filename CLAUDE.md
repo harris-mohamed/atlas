@@ -37,7 +37,7 @@ Discord (discord.js)
     ├── Per-thread CLAUDE.md memory
     ├── Agent swarms (for research sub-agents)
     ├── SQLite persistence
-    └── Credential proxy
+    └── OneCLI Agent Vault (credential gateway)
 ```
 
 **Tech Stack:**
@@ -47,6 +47,7 @@ Discord (discord.js)
 - Containers: Docker or Apple Container
 - Database: SQLite (inherited from NanoClaw)
 - GitHub: gh CLI inside containers
+- Credentials: OneCLI Agent Vault
 
 ---
 
@@ -94,6 +95,10 @@ Your Private Discord Server "Atlas"
 | `groups/control/` | Control channel memory (persistent) |
 | `groups/thread-{id}/` | Research/build thread memory (ephemeral) |
 
+## Secrets / Credentials (OneCLI)
+
+API keys, OAuth tokens, and auth credentials are managed by the OneCLI Agent Vault — which handles secret injection into containers at request time, so no keys or tokens are ever passed to containers directly. Run `/init-onecli` to set up, then migrate `GITHUB_TOKEN` and `BRAVE_API_KEY` from `.env` to the vault.
+
 ---
 
 ## Privileges
@@ -112,7 +117,9 @@ Your Private Discord Server "Atlas"
 DISCORD_TOKEN=                    # Discord bot token
 DISCORD_CONTROL_CHANNEL_ID=       # #control channel ID (isMain)
 ANTHROPIC_API_KEY=                # For Claude Agent SDK
-GITHUB_TOKEN=                     # For creating PRs from builder
+ONECLI_URL=                       # OneCLI Agent Vault URL (default: http://127.0.0.1:4444)
+GITHUB_TOKEN=                     # For creating PRs from builder (or migrate to vault)
+BRAVE_API_KEY=                    # For report agents (or migrate to vault)
 ```
 
 ---
@@ -123,7 +130,16 @@ GITHUB_TOKEN=                     # For creating PRs from builder
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
 npm test             # Run tests
+npm run lint         # Lint source
 ./container/build.sh # Rebuild agent container
+```
+
+Service management:
+```bash
+# Linux (systemd)
+systemctl --user start nanoclaw
+systemctl --user stop nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ---
