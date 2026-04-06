@@ -490,13 +490,13 @@ async function runQuery(
           command: 'node',
           args: [path.join(path.dirname(mcpServerPath), 'ollama-mcp-stdio.js')],
         },
-        ...(process.env.BRAVE_API_KEY ? {
-          'brave-search': {
-            command: 'npx',
-            args: ['@modelcontextprotocol/server-brave-search'],
-            env: { BRAVE_API_KEY: process.env.BRAVE_API_KEY },
-          },
-        } : {}),
+        'brave-search': {
+          // OneCLI injects X-Subscription-Token at the gateway level —
+          // no env var needed here.
+          command: 'npx',
+          args: ['@modelcontextprotocol/server-brave-search'],
+          env: { BRAVE_API_KEY: 'via-onecli-gateway' },
+        },
       },
       hooks: {
         PreCompact: [
