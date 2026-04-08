@@ -312,9 +312,7 @@ export async function runContainerAgent(
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
   // Main group uses the default OneCLI agent; others use their own agent.
-  const agentIdentifier = input.isMain
-    ? undefined
-    : group.folder.toLowerCase().replace(/_/g, '-');
+  const agentIdentifier = input.isMain ? undefined : `atlas-${input.chatJid}`;
   const containerArgs = await buildContainerArgs(
     mounts,
     containerName,

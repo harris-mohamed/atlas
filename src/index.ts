@@ -82,7 +82,7 @@ const onecli = new OneCLI({ url: ONECLI_URL });
 
 function ensureOneCLIAgent(jid: string, group: RegisteredGroup): void {
   if (group.isMain) return;
-  const identifier = group.folder.toLowerCase().replace(/_/g, '-');
+  const identifier = `atlas-${jid}`;
   onecli.ensureAgent({ name: group.name, identifier }).then(
     (res) => {
       logger.info(
