@@ -80,6 +80,35 @@ async function runTask(
   deps: SchedulerDependencies,
 ): Promise<void> {
   const startTime = Date.now();
+  // Direct tasks: send message immediately without spawning a container
+  if (task.context_mode === 'direct') {
+    try {
+      await deps.sendMessage(task.chat_jid, task.prompt);
+      const nextRun = computeNextRun(task);
+      logTaskRun({
+        task_id: task.id,
+        run_at: new Date().toISOString(),
+        duration_ms: Date.now() - startTime,
+        status: 'success',
+        result: task.prompt,
+        error: null,
+      });
+      updateTaskAfterRun(task.id, nextRun, task.prompt.slice(0, 200));
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logTaskRun({
+        task_id: task.id,
+        run_at: new Date().toISOString(),
+        duration_ms: Date.now() - startTime,
+        status: 'error',
+        result: null,
+        error,
+      });
+      logger.error({ taskId: task.id, error }, 'Direct task failed');
+    }
+    return;
+  }
+
   let groupDir: string;
   try {
     groupDir = resolveGroupFolderPath(task.group_folder);

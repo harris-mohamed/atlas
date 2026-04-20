@@ -21,6 +21,7 @@ groups/global/*
 # Secrets
 *.keys.json
 .env
+scripts/gcal/token.json
 
 # Temp files
 .tmp-*

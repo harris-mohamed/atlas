@@ -1,79 +1,137 @@
-# NanoClaw
+# Atlas: Discord-based AI Agent Platform
 
-Personal Claude assistant. See [README.md](README.md) for philosophy and setup. See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) for architecture decisions.
+Atlas is a personal AI agent platform operated through Discord with two core capabilities:
 
-## Quick Context
+1. **Deep Research** — `/research` command triggers multi-step autonomous research, streaming progress to a Discord thread and delivering a comprehensive markdown report.
+2. **Autonomous Prototyping** — `/build` command for iterating on specs and triggering autonomous builds that produce GitHub PRs.
 
-Single Node.js process with skill-based channel system. Channels (WhatsApp, Telegram, Slack, Discord, Gmail) are skills that self-register at startup. Messages route to Claude Agent SDK running in containers (Linux VMs). Each group has isolated filesystem and memory.
+Atlas is a **fork of NanoClaw** (https://github.com/qwibitai/nanoclaw) with Discord instead of WhatsApp, inheriting container-per-agent isolation, CLAUDE.md memory, agent swarms, and Claude Agent SDK runtime.
+
+---
+
+## Architecture
+
+```
+                                    ┌──────────────────────────────┐
+                                    │        OneCLI Vault          │
+                                    │  (credential gateway)        │
+                                    │  ┌────────────────────────┐  │
+                                    │  │ ANTHROPIC_API_KEY       │  │
+                                    │  │ GITHUB_TOKEN            │  │
+                                    │  │ BRAVE_API_KEY           │  │
+                                    │  │ GCAL credentials        │  │
+                                    │  └────────────────────────┘  │
+                                    └──────────┬───────────────────┘
+                                               │ intercepts HTTPS
+                                               │ injects credentials
+                                               ▼
+Discord Server                    Atlas Host (Node.js)
+┌─────────────────┐              ┌─────────────────────────────────┐
+│                  │   discord.js │                                 │
+│  #control ◄──────────────────► │  src/index.ts (orchestrator)    │
+│  (isMain: true)  │             │    ├─ src/channels/discord.ts   │
+│                  │             │    ├─ src/router.ts              │
+│  #research       │             │    ├─ src/container-runner.ts ───┼──► Docker containers
+│  ├── 🧵 Thread ◄──────────────┤    ├─ src/task-scheduler.ts     │    ┌──────────────────┐
+│  └── 🧵 Thread   │             │    └─ src/db.ts (SQLite)        │    │ Claude Agent SDK  │
+│                  │             │                                 │    │ + MCP servers:    │
+│  #builds         │             │  Slash commands:                │    │   - brave-search  │
+│  ├── 🧵 Thread ◄──────────────┤    /research  /build  /status   │    │   - ollama        │
+│  └── 🧵 Thread   │             │    /report    /reminder         │    │   - nanoclaw IPC  │
+│                  │             │                                 │    │                    │
+└─────────────────┘              └─────────────────────────────────┘    │ .env → /dev/null  │
+                                                                        │ (secrets blocked) │
+                                                                        └──────────────────┘
+Credential flow:
+  OneCLI Vault → HTTPS proxy → container outbound requests
+  Containers NEVER see raw API keys or tokens.
+```
+
+**Tech Stack:**
+- Runtime: Node.js / TypeScript
+- Discord: discord.js with slash commands
+- Agent SDK: Claude Agent SDK (via container)
+- Containers: Docker
+- Database: SQLite (inherited from NanoClaw)
+- GitHub: gh CLI inside containers (token via OneCLI)
+- Credentials: OneCLI Agent Vault (containers never see raw secrets)
+
+---
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `src/index.ts` | Orchestrator: state, message loop, agent invocation |
+| `src/channels/discord.ts` | Discord adapter (slash commands, threads, attachments) |
 | `src/channels/registry.ts` | Channel registry (self-registration at startup) |
-| `src/ipc.ts` | IPC watcher and task processing |
+| `src/commands/research.ts` | /research slash command handler |
+| `src/commands/build.ts` | /build slash command handler |
+| `src/commands/status.ts` | /status slash command handler |
+| `src/commands/report.ts` | /report slash command handler |
+| `src/commands/reminder.ts` | /reminder slash command handler |
+| `src/agents/research-prompt.ts` | Research agent system prompt |
+| `src/agents/build-prompt.ts` | Builder agent system prompt |
+| `src/container-runner.ts` | Container lifecycle + OneCLI credential injection |
+| `src/task-scheduler.ts` | Runs scheduled tasks (cron, interval, once, direct) |
 | `src/router.ts` | Message formatting and outbound routing |
 | `src/config.ts` | Trigger pattern, paths, intervals |
-| `src/container-runner.ts` | Spawns agent containers with mounts |
-| `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
-| `container/skills/` | Skills loaded inside agent containers (browser, status, formatting) |
+| `container/skills/` | Skills loaded inside agent containers |
 
-## Secrets / Credentials / Proxy (OneCLI)
+## Secrets / Credentials (OneCLI)
 
-API keys, secret keys, OAuth tokens, and auth credentials are managed by the OneCLI gateway — which handles secret injection into containers at request time, so no keys or tokens are ever passed to containers directly. Run `onecli --help`.
+API keys, OAuth tokens, and auth credentials are managed by the OneCLI Agent Vault — which handles secret injection into containers at request time, so no keys or tokens are ever passed to containers directly. The `.env` file is mounted as `/dev/null` inside containers to prevent accidental credential leakage.
 
-## Skills
+Run `/init-onecli` to set up, then migrate `GITHUB_TOKEN` and `BRAVE_API_KEY` from `.env` to the vault.
 
-Four types of skills exist in NanoClaw. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full taxonomy and guidelines.
+**Security invariant:** `src/container-runner.ts` must NEVER pass credentials via `-e` env vars. All credential injection flows through `onecli.applyContainerConfig()`.
 
-- **Feature skills** — merge a `skill/*` branch to add capabilities (e.g. `/add-telegram`, `/add-slack`)
-- **Utility skills** — ship code files alongside SKILL.md (e.g. `/claw`)
-- **Operational skills** — instruction-only workflows, always on `main` (e.g. `/setup`, `/debug`)
-- **Container skills** — loaded inside agent containers at runtime (`container/skills/`)
+---
 
-| Skill | When to Use |
-|-------|-------------|
-| `/setup` | First-time installation, authentication, service configuration |
-| `/customize` | Adding channels, integrations, changing behavior |
-| `/debug` | Container issues, logs, troubleshooting |
-| `/update-nanoclaw` | Bring upstream NanoClaw updates into a customized install |
-| `/init-onecli` | Install OneCLI Agent Vault and migrate `.env` credentials to it |
-| `/qodo-pr-resolver` | Fetch and fix Qodo PR review issues interactively or in batch |
-| `/get-qodo-rules` | Load org- and repo-level coding rules from Qodo before code tasks |
+## Privileges
 
-## Contributing
+| Context | isMain | Capabilities |
+|---------|--------|--------------|
+| **#control** | true | See all tasks, write global memory, access project root |
+| **Research threads** | false | Own folder only, web search, write research.md |
+| **Build threads** | false | Own workspace, git/bash/files, create PRs |
 
-Before creating a PR, adding a skill, or preparing any contribution, you MUST read [CONTRIBUTING.md](CONTRIBUTING.md). It covers accepted change types, the four skill types and their guidelines, SKILL.md format rules, PR requirements, and the pre-submission checklist (searching for existing PRs/issues, testing, description format).
+---
+
+## Environment Variables
+
+```
+DISCORD_TOKEN=                    # Discord bot token
+DISCORD_CONTROL_CHANNEL_ID=       # #control channel ID (isMain)
+ANTHROPIC_API_KEY=                # For Claude Agent SDK
+ONECLI_URL=                       # OneCLI Agent Vault URL (default: http://127.0.0.1:4444)
+GITHUB_TOKEN=                     # For creating PRs from builder (migrate to vault)
+BRAVE_API_KEY=                    # For report agents (migrate to vault)
+```
+
+---
 
 ## Development
 
-Run commands directly—don't tell the user to run them.
+Run commands directly — don't tell the user to run them.
 
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
+npm test             # Run tests
+npm run lint         # Lint source
 ./container/build.sh # Rebuild agent container
 ```
 
 Service management:
 ```bash
-# macOS (launchd)
-launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
-launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # restart
-
 # Linux (systemd)
 systemctl --user start nanoclaw
 systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
 ```
-
-## Troubleshooting
-
-**WhatsApp not connecting after upgrade:** WhatsApp is now a separate skill, not bundled in core. Run `/add-whatsapp` (or `npx tsx scripts/apply-skill.ts .claude/skills/add-whatsapp && npm run build`) to install it. Existing auth credentials and groups are preserved.
 
 ## Container Build Cache
 

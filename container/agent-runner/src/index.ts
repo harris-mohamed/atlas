@@ -469,6 +469,8 @@ async function runQuery(
         'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
+        'mcp__ollama__*',
+        'mcp__brave-search__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -483,6 +485,18 @@ async function runQuery(
             NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
+        },
+        ollama: {
+          command: 'node',
+          args: [path.join(path.dirname(mcpServerPath), 'ollama-mcp-stdio.js')],
+        },
+        'brave-search': {
+          // OneCLI injects X-Subscription-Token at the gateway level —
+          // no env var needed here. Placeholder satisfies the MCP server's
+          // startup check; the real key is injected by the proxy.
+          command: 'npx',
+          args: ['@modelcontextprotocol/server-brave-search'],
+          env: { BRAVE_API_KEY: 'via-onecli-gateway' },
         },
       },
       hooks: {
